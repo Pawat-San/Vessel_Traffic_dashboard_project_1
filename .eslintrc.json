@@ -1,0 +1,21 @@
+{
+  "env": {
+    "node": true,
+    "commonjs": true,
+    "es2021": true,
+    "jest": true,
+    "browser": true
+  },
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": "latest"
+  },
+  "rules": {
+    "no-unused-vars": ["warn", { 
+      "argsIgnorePattern": "^(req|res|next|val|db|err)$",
+      "varsIgnorePattern": "^(z|config|express|router|logger|jwt|crypto)$"
+    }],
+    "no-console": "off",
+    "no-empty": "warn"
+  }
+}

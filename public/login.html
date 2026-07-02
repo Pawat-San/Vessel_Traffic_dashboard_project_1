@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Vessel Traffic Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="login-body">
+  
+  <div class="login-card">
+    <div class="login-logo">🛳️</div>
+    <h2 class="login-title">Vessel Traffic</h2>
+    <p class="login-subtitle">Port Control & Traffic Management</p>
+    
+    <form class="login-form" id="login-form">
+      <div class="form-group">
+        <label class="form-label" for="username">Username</label>
+        <input class="form-control" type="text" id="username" placeholder="Enter username" required autocomplete="username">
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input class="form-control" type="password" id="password" placeholder="Enter password" required autocomplete="current-password">
+      </div>
+      
+      <button class="btn btn-primary" type="submit" style="margin-top: 1rem; padding: 0.75rem;">
+        Authenticate
+      </button>
+    </form>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Load client scripts -->
+  <script src="/js/api.js"></script>
+  <script src="/js/components.js"></script>
+  <script src="/js/auth.js"></script>
+  
+  <script>
+    document.getElementById('login-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = document.getElementById('username').value;
+      const pass = document.getElementById('password').value;
+      window.auth.login(user, pass);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,406 @@
+openapi: 3.0.3
+info:
+  title: Vessel Traffic Dashboard API Documentation
+  version: 1.0.0
+  description: Enterprise-grade RESTful API for port vessel tracking (Airport FIDS style).
+servers:
+  - url: http://localhost:3000/api
+    description: Development Server
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: Server status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                      uptime:
+                        type: number
+                      database:
+                        type: string
+                      version:
+                        type: string
+                      timestamp:
+                        type: string
+
+  /auth/login:
+    post:
+      summary: Authenticate user and issue tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Successful login
+        '401':
+          description: Invalid credentials
+        '429':
+          description: Too many failed attempts (locked out)
+
+  /auth/refresh:
+    post:
+      summary: Issue new access token using refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: New access token generated
+        '401':
+          description: Invalid or expired refresh token
+
+  /auth/logout:
+    post:
+      summary: Revoke session refresh token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Session invalidated
+
+  /terminals:
+    get:
+      summary: Get list of port terminals
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: activeOnly
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of terminals
+    post:
+      summary: Create new terminal (Admin Only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TerminalInput'
+      responses:
+        '201':
+          description: Terminal created
+
+  /terminals/{id}:
+    get:
+      summary: Get terminal by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Terminal details
+    put:
+      summary: Update terminal (Admin Only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TerminalInput'
+      responses:
+        '200':
+          description: Terminal updated
+    delete:
+      summary: Delete terminal (Admin Only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Terminal deleted
+
+  /vessels:
+    get:
+      summary: Get active vessels list with search, filters, pagination
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [AT SEA, ANCHOR, BERTH, DEPART]
+        - name: terminal_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            type: string
+            default: eta
+        - name: sortDir
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        '200':
+          description: Paginated list of vessels
+    post:
+      summary: Create new vessel (Admin/Operator Only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VesselInput'
+      responses:
+        '201':
+          description: Vessel created
+
+  /vessels/summary:
+    get:
+      summary: Get count of vessels by status
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Status summaries counts
+
+  /vessels/{id}:
+    get:
+      summary: Get vessel by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Vessel details
+    put:
+      summary: Update vessel (Admin/Operator Only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VesselInput'
+      responses:
+        '200':
+          description: Vessel updated
+    delete:
+      summary: Delete vessel (Admin Only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Vessel deleted
+
+  /vessels/archive:
+    post:
+      summary: Manually trigger archiving job (Admin Only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Archive job completed successfully
+
+  /archive:
+    get:
+      summary: Get archived historic vessel logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Historical records list
+
+  /archive/purge:
+    post:
+      summary: Manually purge old archived logs (Admin Only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 90
+      responses:
+        '200':
+          description: Records purged
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    TerminalInput:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        group_name:
+          type: string
+        sort_order:
+          type: integer
+        is_active:
+          type: integer
+          enum: [0, 1]
+
+    VesselInput:
+      type: object
+      required:
+        - vessel_name
+        - type
+        - terminal_id
+        - activity
+        - status
+      properties:
+        vessel_name:
+          type: string
+        voy:
+          type: string
+        type:
+          type: string
+          enum: [Container, Bulk, Tanker, General, RoRo, LPG, Passenger]
+        terminal_id:
+          type: integer
+        activity:
+          type: string
+          enum: [L, D, B, DD, LD, LB, DB, LDB, L,D, L,B, D,B, L,D,B]
+        eta:
+          type: string
+        etb:
+          type: string
+        etd:
+          type: string
+        atd:
+          type: string
+        status:
+          type: string
+          enum: [AT SEA, ANCHOR, BERTH, DEPART]
+        next_port:
+          type: string
+        remark:
+          type: string

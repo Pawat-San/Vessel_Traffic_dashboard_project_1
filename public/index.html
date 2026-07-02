@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vessel Traffic Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Header Area -->
+  <header>
+    <div class="brand-section">
+      <div class="brand-logo">🛳️</div>
+      <h1 class="brand-title">Vessel Traffic Dashboard</h1>
+    </div>
+    
+    <div class="header-meta">
+      <div class="fids-clock" id="live-clock">Loading Time...</div>
+      
+      <button class="btn btn-secondary theme-toggle-btn" id="theme-toggle-btn" title="Toggle Light/Dark Mode" style="font-size: 1.25rem; padding: 0.25rem 0.5rem; border: none;">
+        🌓
+      </button>
+      
+      <div class="user-badge" id="user-badge-container">
+        <!-- Injected by auth.js -->
+        <span class="display-name">-</span>
+      </div>
+      
+      <button class="btn btn-secondary" id="logout-btn">
+        Logout
+      </button>
+    </div>
+  </header>
+
+  <!-- Dashboard Container -->
+  <main class="dashboard-container">
+    
+    <!-- Summary Counter Cards -->
+    <section class="summary-grid">
+      <div class="summary-card total">
+        <span class="summary-title">Total Vessels</span>
+        <span class="summary-value" id="sum-total">0</span>
+      </div>
+      <div class="summary-card at-sea">
+        <span class="summary-title">At Sea</span>
+        <span class="summary-value" id="sum-sea">0</span>
+      </div>
+      <div class="summary-card anchor">
+        <span class="summary-title">Anchor</span>
+        <span class="summary-value" id="sum-anchor">0</span>
+      </div>
+      <div class="summary-card berth">
+        <span class="summary-title">Berth</span>
+        <span class="summary-value" id="sum-berth">0</span>
+      </div>
+      <div class="summary-card depart">
+        <span class="summary-title">Departed</span>
+        <span class="summary-value" id="sum-depart">0</span>
+      </div>
+    </section>
+
+    <!-- Filters and Action Panel -->
+    <section class="control-panel">
+      <div class="filters-group">
+        <div class="search-input-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="filter-search" placeholder="Search by name, VOY, next port...">
+        </div>
+        
+        <select class="form-select" id="filter-status">
+          <option value="">All Statuses</option>
+          <option value="AT SEA">AT SEA</option>
+          <option value="ANCHOR">ANCHOR</option>
+          <option value="BERTH">BERTH</option>
+          <option value="DEPART">DEPARTED</option>
+        </select>
+        
+        <select class="form-select" id="filter-terminal">
+          <option value="">All Terminals</option>
+          <!-- Populated by JS -->
+        </select>
+      </div>
+      
+      <div class="action-group">
+        <button class="btn btn-secondary" id="view-archive-btn">
+          🗂️ View Archive
+        </button>
+        <button class="btn btn-secondary" id="export-csv-btn">
+          📥 Export CSV
+        </button>
+        <button class="btn btn-primary" id="add-vessel-btn" style="display: none;">
+          ➕ Add Vessel
+        </button>
+      </div>
+    </section>
+
+    <!-- Main FIDS Grid Table -->
+    <section class="table-container">
+      <table class="fids-table">
+        <thead>
+          <tr>
+            <th data-sort="vessel_name">Vessel Name</th>
+            <th data-sort="voy">VOY</th>
+            <th data-sort="type">Type</th>
+            <th data-sort="terminal_code">Terminal</th>
+            <th data-sort="activity">Activity</th>
+            <th data-sort="eta" class="sorted-asc">ETA</th>
+            <th data-sort="etb">ETB</th>
+            <th data-sort="etd">ETD</th>
+            <th data-sort="atd">ATD</th>
+            <th data-sort="status">Status</th>
+            <th id="action-header-cell" style="display: none;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="vessels-table-body">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+      
+      <!-- Table Pagination Footer -->
+      <div class="pagination-panel">
+        <div class="pagination-info" id="pagination-info">Showing page 1 of 1</div>
+        <div class="pagination-buttons">
+          <button class="btn btn-secondary" id="btn-prev-page" disabled>Previous</button>
+          <button class="btn btn-secondary" id="btn-next-page" disabled>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Admin Tools Quick Panel (Admin Only) -->
+    <section class="control-panel" id="admin-tools-container" style="display: none; justify-content: flex-start; gap: 1rem; border-color: rgba(239, 68, 68, 0.25);">
+      <span style="font-weight: 700; color: var(--color-depart); text-transform: uppercase; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem;">
+        🛡️ Admin Maintenance Tools:
+      </span>
+      <button class="btn btn-secondary" id="trigger-archive-btn">
+        🔄 Trigger Auto-Archive Now
+      </button>
+      <button class="btn btn-danger" id="trigger-purge-btn">
+        🗑️ Purge Archive (>90 Days)
+      </button>
+    </section>
+
+  </main>
+
+  <!-- Add/Edit Vessel Modal Dialog -->
+  <div class="modal-overlay" id="vessel-modal">
+    <div class="modal-wrapper">
+      <div class="modal-header">
+        <h3 id="vessel-modal-title">Add New Vessel</h3>
+        <button class="modal-close-btn" id="vessel-modal-close-top">&times;</button>
+      </div>
+      <form id="vessel-form">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label" for="form-vessel-name">Vessel Name *</label>
+              <input class="form-control" type="text" id="form-vessel-name" required placeholder="e.g. EVER GIVEN">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="form-voy">VOY Code</label>
+              <input class="form-control" type="text" id="form-voy" placeholder="e.g. 0422-003">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="form-type">Vessel Type *</label>
+              <select class="form-select" id="form-type" required>
+                <option value="Container">Container</option>
+                <option value="Bulk">Bulk</option>
+                <option value="Tanker">Tanker</option>
+                <option value="General">General</option>
+                <option value="RoRo">RoRo</option>
+                <option value="LPG">LPG</option>
+                <option value="Passenger">Passenger</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="form-terminal-id">Terminal Berthing *</label>
+              <select class="form-select" id="form-terminal-id" required>
+                <option value="">Select Terminal</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="form-activity">Activity Code *</label>
+              <select class="form-select" id="form-activity" required>
+                <option value="L">L (Loading)</option>
+                <option value="D">D (Discharging)</option>
+                <option value="B">B (Bunkering)</option>
+                <option value="DD">DD (Dry Docking)</option>
+                <option value="L,D">L,D (Loading & Discharging)</option>
+                <option value="L,B">L,B (Loading & Bunkering)</option>
+                <option value="D,B">D,B (Discharging & Bunkering)</option>
+                <option value="L,D,B">L,D,B (Load, Discharge & Bunker)</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="form-status">Traffic Status *</label>
+              <select class="form-select" id="form-status" required>
+                <option value="AT SEA">AT SEA</option>
+                <option value="ANCHOR">ANCHOR</option>
+                <option value="BERTH">BERTH</option>
+                <option value="DEPART">DEPARTED</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="form-eta">ETA (Est Time of Arrival)</label>
+              <input class="form-control" type="datetime-local" id="form-eta">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="form-etb">ETB (Est Time of Berthing)</label>
+              <input class="form-control" type="datetime-local" id="form-etb">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="form-etd">ETD (Est Time of Departure)</label>
+              <input class="form-control" type="datetime-local" id="form-etd">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="form-atd">ATD (Actual Time of Departure)</label>
+              <input class="form-control" type="datetime-local" id="form-atd">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="form-next-port">Next Port of Call</label>
+              <input class="form-control" type="text" id="form-next-port" placeholder="e.g. SINGAPORE">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="form-remark">Remark / Notes</label>
+              <input class="form-control" type="text" id="form-remark" placeholder="Extra traffic conditions">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" id="vessel-modal-close-bottom">Cancel</button>
+          <button class="btn btn-primary" type="submit">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Historical Archives Modal Dialog -->
+  <div class="modal-overlay" id="archive-modal">
+    <div class="modal-wrapper" style="max-width: 800px;">
+      <div class="modal-header">
+        <h3>Historical Vessel Archive Logs</h3>
+        <button class="modal-close-btn" id="archive-modal-close-top">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Archive Search Filter -->
+        <div class="archive-search-box">
+          <div class="form-group" style="flex-grow: 1;">
+            <label class="form-label">Search Query</label>
+            <input class="form-control" type="text" id="archive-search-query" placeholder="Vessel name, VOY, terminal...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Archived From</label>
+            <input class="form-control" type="date" id="archive-start-date">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Archived To</label>
+            <input class="form-control" type="date" id="archive-end-date">
+          </div>
+          <button class="btn btn-primary" id="archive-search-btn" style="height: 38px;">
+            Search
+          </button>
+        </div>
+
+        <!-- Archive Table -->
+        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+          <table class="fids-table" style="font-size: 0.85rem;">
+            <thead>
+              <tr style="background-color: var(--bg-primary);">
+                <th>Vessel Name</th>
+                <th>VOY</th>
+                <th>Terminal</th>
+                <th>ETA</th>
+                <th>ATD</th>
+                <th>Archived At</th>
+                <th>Operator</th>
+              </tr>
+            </thead>
+            <tbody id="archive-table-body">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="archive-modal-close-bottom">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Area -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Load Scripts in Order -->
+  <script src="/js/utils.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/components.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/app.js"></script>
+
+</body>
+</html>

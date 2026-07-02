@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - vessel-data:/app/data    # Persist SQLite DB files
+      - vessel-logs:/app/logs    # Persist Winston system logs
+    env_file: .env
+    restart: unless-stopped
+
+volumes:
+  vessel-data:
+  vessel-logs:

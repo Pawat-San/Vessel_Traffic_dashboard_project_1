@@ -1,0 +1,31 @@
+# Dependency directories
+node_modules/
+
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Log files and directories
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database files
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Coverage directory used by Jest
+coverage/
+
+# IDE / OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
