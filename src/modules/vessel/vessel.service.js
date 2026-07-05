@@ -3,7 +3,7 @@ const terminalRepository = require('../terminal/terminal.repository');
 const cache = require('../../utils/cache');
 const { NotFoundError, ValidationError } = require('../../utils/errors');
 const logger = require('../../utils/logger');
-const connection = require('../../database/connection');
+const database = require('../../database/knex');
 
 class VesselService {
   /**
@@ -19,37 +19,11 @@ class VesselService {
   }
 
   /**
-   * Helper to compute diff between old and new state for audit logs
-   */
-  calculateDiff(oldState, newState) {
-    const changes = {};
-    for (const key of Object.keys(newState)) {
-      // Skip internal metadata dates if we only want to track user-facing fields
-      if (['date_modify', 'created_at', 'updated_by_name', 'terminal_name', 'terminal_code'].includes(key)) {
-        continue;
-      }
-      
-      const oldVal = oldState[key];
-      const newVal = newState[key];
-      
-      // Compare values, treating undefined or null equivalently for empty DB inputs
-      const normalize = (v) => (v === undefined || v === null ? '' : String(v));
-      if (normalize(oldVal) !== normalize(newVal)) {
-        changes[key] = {
-          old: oldVal === undefined ? null : oldVal,
-          new: newVal === undefined ? null : newVal,
-        };
-      }
-    }
-    return Object.keys(changes).length > 0 ? changes : null;
-  }
-
-  /**
    * Get filtered, sorted, paginated vessels list (Cache-Aside with 30s TTL)
    */
   async getVessels(filters = {}, pagination = { limit: 20, offset: 0 }, sorting = { sortBy: 'eta', sortDir: 'ASC' }) {
     const cacheKey = `vessels:list:${JSON.stringify({ filters, pagination, sorting })}`;
-    
+
     const cached = cache.get(cacheKey);
     if (cached) {
       logger.debug(`Cache HIT for key: ${cacheKey}`);
@@ -57,8 +31,8 @@ class VesselService {
     }
 
     logger.debug(`Cache MISS for key: ${cacheKey}`);
-    const result = vesselRepository.findAndCount(filters, pagination, sorting);
-    
+    const result = await vesselRepository.findAndCount(filters, pagination, sorting);
+
     cache.set(cacheKey, result, 30);
     return result;
   }
@@ -68,13 +42,13 @@ class VesselService {
    */
   async getVesselSummary() {
     const cacheKey = 'vessels:summary';
-    
+
     const cached = cache.get(cacheKey);
     if (cached) {
       return cached;
     }
 
-    const summary = vesselRepository.getSummary();
+    const summary = await vesselRepository.getSummary();
     cache.set(cacheKey, summary, 30);
     return summary;
   }
@@ -83,7 +57,7 @@ class VesselService {
    * Get a vessel by its ID
    */
   async getVesselById(id) {
-    const vessel = vesselRepository.findById(id);
+    const vessel = await vesselRepository.findById(id);
     if (!vessel) {
       throw new NotFoundError(`Vessel with ID ${id} not found`);
     }
@@ -94,35 +68,29 @@ class VesselService {
    * Create a new vessel
    */
   async createVessel(data, userId, clientIp) {
-    // 1. Verify terminal is valid and active
-    const terminal = terminalRepository.findById(data.terminal_id);
+    const terminal = await terminalRepository.findById(data.terminal_id);
     if (!terminal || terminal.is_active !== 1) {
       throw new ValidationError(`Terminal ID ${data.terminal_id} is invalid or inactive`);
     }
 
-    // 2. Add creator metadata
-    // 3. Create vessel and insert audit log in a transaction
-    const result = connection.db.transaction(() => {
-      // 1. Validate payload and create vessel
-      const createdVessel = vesselRepository.create({
+    const result = await database.db.transaction(async (trx) => {
+      const createdVessel = await vesselRepository.create({
         ...data,
         updated_by: userId,
-      });
+      }, trx);
 
-      // 2. Create audit log entry
-      vesselRepository.createAuditLog({
+      await vesselRepository.createAuditLog({
         action: 'CREATE',
         entity_type: 'vessel',
         entity_id: createdVessel.id,
         changes: data,
         user_id: userId,
         ip_address: clientIp,
-      });
+      }, trx);
 
       return createdVessel;
-    })();
-    
-    // 4. Invalidate caches
+    });
+
     this.clearVesselsCache();
     logger.info(`Vessel created: ${result.vessel_name}`, { vesselId: result.id, userId });
 
@@ -133,39 +101,36 @@ class VesselService {
    * Update an existing vessel
    */
   async updateVessel(id, data, userId, clientIp) {
-    const existing = vesselRepository.findById(id);
+    const existing = await vesselRepository.findById(id);
     if (!existing) {
       throw new NotFoundError(`Vessel with ID ${id} not found`);
     }
 
-    // If changing terminal, verify it is valid and active
     if (data.terminal_id && data.terminal_id !== existing.terminal_id) {
-      const terminal = terminalRepository.findById(data.terminal_id);
+      const terminal = await terminalRepository.findById(data.terminal_id);
       if (!terminal || terminal.is_active !== 1) {
         throw new ValidationError(`Terminal ID ${data.terminal_id} is invalid or inactive`);
       }
     }
 
-    const result = connection.db.transaction(() => {
-      // Update vessel
-      const updatedVessel = vesselRepository.update(id, {
+    const result = await database.db.transaction(async (trx) => {
+      const updatedVessel = await vesselRepository.update(id, {
         ...data,
         updated_by: userId,
-      });
+      }, trx);
 
-      // Create audit log
-      vesselRepository.createAuditLog({
+      await vesselRepository.createAuditLog({
         action: 'UPDATE',
         entity_type: 'vessel',
         entity_id: id,
-        changes: data, // In a real system, you might compute a diff here
+        changes: data,
         user_id: userId,
         ip_address: clientIp,
-      });
+      }, trx);
 
       return updatedVessel;
-    })();
-    
+    });
+
     this.clearVesselsCache();
     logger.info(`Vessel updated: ${result.vessel_name}`, { vesselId: id, userId });
 
@@ -176,26 +141,24 @@ class VesselService {
    * Delete a vessel
    */
   async deleteVessel(id, userId, clientIp) {
-    const existing = vesselRepository.findById(id);
+    const existing = await vesselRepository.findById(id);
     if (!existing) {
       throw new NotFoundError(`Vessel with ID ${id} not found`);
     }
 
-    connection.db.transaction(() => {
-      vesselRepository.delete(id);
+    await database.db.transaction(async (trx) => {
+      await vesselRepository.delete(id, trx);
 
-      vesselRepository.createAuditLog({
+      await vesselRepository.createAuditLog({
         action: 'DELETE',
         entity_type: 'vessel',
         entity_id: id,
         changes: { deleted: true },
         user_id: userId,
         ip_address: clientIp,
-      });
+      }, trx);
+    });
 
-      return true;
-    })();
-    
     this.clearVesselsCache();
     logger.info(`Vessel deleted: ${existing.vessel_name} (ID: ${id})`, { userId });
 
@@ -209,8 +172,7 @@ class VesselService {
     const thresholdDate = new Date(Date.now() - hoursThreshold * 60 * 60 * 1000);
     const thresholdIso = thresholdDate.toISOString();
 
-    // Find vessels matching criteria
-    const expiredVessels = vesselRepository.findExpiredForArchive(thresholdIso);
+    const expiredVessels = await vesselRepository.findExpiredForArchive(thresholdIso);
 
     if (expiredVessels.length === 0) {
       logger.debug('No expired vessels found to archive.');
@@ -219,37 +181,31 @@ class VesselService {
 
     logger.info(`Archiving ${expiredVessels.length} vessels departed before ${thresholdIso}`);
 
-    const executeTransaction = connection.db.transaction(() => {
-      const insertArchive = connection.db.prepare(`
-        INSERT INTO vessel_archive (
-          id, vessel_name, voy, type, terminal_code, activity, eta, etb, etd, atd, status, next_port, remark, updated_by_name, date_modify, created_at
-        )
-        VALUES (
-          @id, @vessel_name, @voy, @type, @terminal_code, @activity, @eta, @etb, @etd, @atd, @status, @next_port, @remark, @updated_by_name, @date_modify, @created_at
-        )
-      `);
-
+    await database.db.transaction(async (trx) => {
       for (const vessel of expiredVessels) {
-        // Insert into archive
-        insertArchive.run(vessel);
+        const {
+          id, vessel_name, voy, type, terminal_code, activity, eta, etb, etd, atd,
+          status, next_port, remark, updated_by_name, date_modify, created_at,
+        } = vessel;
 
-        // Create audit log for archive action
-        vesselRepository.createAuditLog({
+        await trx('vessel_archive').insert({
+          id, vessel_name, voy, type, terminal_code, activity, eta, etb, etd, atd,
+          status, next_port, remark, updated_by_name, date_modify, created_at,
+        });
+
+        await vesselRepository.createAuditLog({
           action: 'ARCHIVE',
           entity_type: 'vessel',
           entity_id: vessel.id,
           changes: { reason: `Auto-archived: ATD (${vessel.atd}) older than ${hoursThreshold}h` },
-          user_id: 1, // System user (Admin ID 1)
+          user_id: 1,
           ip_address: '127.0.0.1',
-        }, connection.db);
+        }, trx);
       }
 
-      // Delete from active vessels
-      const ids = expiredVessels.map(v => v.id);
-      vesselRepository.deleteMany(ids, connection.db);
+      const ids = expiredVessels.map((v) => v.id);
+      await vesselRepository.deleteMany(ids, trx);
     });
-
-    executeTransaction();
 
     this.clearVesselsCache();
     logger.info(`Successfully archived ${expiredVessels.length} vessels.`);

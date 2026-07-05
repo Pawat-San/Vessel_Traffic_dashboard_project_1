@@ -2,6 +2,7 @@ const express = require('express');
 const terminalController = require('./terminal.controller');
 const authenticate = require('../../middleware/authenticate');
 const authorize = require('../../middleware/authorize');
+const requirePasswordChange = require('../../middleware/requirePasswordChange');
 const validate = require('../../middleware/validate');
 const { createTerminalSchema, updateTerminalSchema } = require('./terminal.schema');
 
@@ -9,6 +10,7 @@ const router = express.Router();
 
 // All terminal routes require authentication
 router.use(authenticate);
+router.use(requirePasswordChange);
 
 // View terminals is allowed for any authenticated user (admin, operator, viewer)
 router.get('/', terminalController.getAllTerminals);

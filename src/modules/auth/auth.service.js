@@ -1,15 +1,15 @@
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const config = require('../../config');
 const authRepository = require('./auth.repository');
+const { hashPassword, verifyPassword, isLegacyHash } = require('../../utils/password');
 const { AuthenticationError } = require('../../utils/errors');
 const logger = require('../../utils/logger');
 
 class AuthService {
   /**
    * Hashes a token string using SHA-256 for safe database storage
-   * @param {string} token 
+   * @param {string} token
    * @returns {string} Hashed token hex
    */
   hashToken(token) {
@@ -20,16 +20,23 @@ class AuthService {
    * Authenticate a user by username and password
    */
   async login(username, password) {
-    const user = authRepository.findByUsername(username);
+    const user = await authRepository.findByUsername(username);
     if (!user) {
       logger.warn(`Failed login attempt for non-existent or inactive user: ${username}`);
       throw new AuthenticationError('Invalid username or password');
     }
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
+    const isMatch = await verifyPassword(password, user.password_hash);
     if (!isMatch) {
       logger.warn(`Failed login attempt for user: ${username} (incorrect password)`);
       throw new AuthenticationError('Invalid username or password');
+    }
+
+    // Lazily migrate legacy bcrypt hashes to Argon2 on successful login
+    if (isLegacyHash(user.password_hash)) {
+      const newHash = await hashPassword(password);
+      await authRepository.updatePasswordHash(user.id, newHash);
+      logger.info(`Migrated password hash to argon2 for user: ${user.username}`, { userId: user.id });
     }
 
     // Generate tokens
@@ -52,7 +59,7 @@ class AuthService {
 
     // Hash and store the refresh token
     const tokenHash = this.hashToken(refreshToken);
-    authRepository.updateRefreshToken(user.id, tokenHash);
+    await authRepository.updateRefreshToken(user.id, tokenHash);
 
     logger.info(`User successfully logged in: ${user.username}`, { userId: user.id });
 
@@ -64,6 +71,7 @@ class AuthService {
         username: user.username,
         displayName: user.display_name,
         role: user.role,
+        mustChangePassword: Boolean(user.must_change_password),
       }
     };
   }
@@ -75,18 +83,17 @@ class AuthService {
     try {
       // 1. Verify token signature and expiration
       const decoded = jwt.verify(refreshToken, config.jwt.refreshSecret);
-      
+
       // 2. Fetch user
-      const user = authRepository.findById(decoded.id);
+      const user = await authRepository.findById(decoded.id);
       if (!user || user.is_active !== 1) {
         throw new AuthenticationError('User is no longer active or exists');
       }
 
       // 3. Verify token hash against database record
-      // We retrieve the full user record including token hash
-      const fullUser = authRepository.findByUsername(user.username);
+      const fullUser = await authRepository.findByUsername(user.username);
       const tokenHash = this.hashToken(refreshToken);
-      
+
       if (!fullUser.refresh_token_hash || fullUser.refresh_token_hash !== tokenHash) {
         logger.warn(`Refresh token mismatch for user ID: ${user.id}`);
         throw new AuthenticationError('Invalid refresh token');
@@ -120,7 +127,7 @@ class AuthService {
    * Log out user and revoke refresh token
    */
   async logout(userId) {
-    authRepository.updateRefreshToken(userId, null);
+    await authRepository.updateRefreshToken(userId, null);
     logger.info(`User logged out and session revoked: ID ${userId}`, { userId });
     return true;
   }

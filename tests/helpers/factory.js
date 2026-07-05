@@ -1,54 +1,47 @@
-const bcrypt = require('bcryptjs');
-const connection = require('../../src/database/connection');
+const { hashPassword } = require('../../src/utils/password');
+const database = require('../../src/database/knex');
 
 /**
  * Inserts a mock user into test database
  */
-function createUser(overrides = {}) {
+async function createUser(overrides = {}) {
+  const password = overrides.password || 'password123';
   const user = {
     username: `user_${Math.random().toString(36).substring(7)}`,
-    password_hash: bcrypt.hashSync(overrides.password || 'password123', 6),
+    password_hash: await hashPassword(password),
     display_name: 'Test User',
     role: 'operator',
     is_active: 1,
-    ...overrides
+    must_change_password: false,
+    ...overrides,
   };
+  delete user.password;
 
-  const stmt = connection.db.prepare(`
-    INSERT INTO users (username, password_hash, display_name, role, is_active)
-    VALUES (@username, @password_hash, @display_name, @role, @is_active)
-  `);
-  const info = stmt.run(user);
-  
-  return { id: info.lastInsertRowid, ...user };
+  const [row] = await database.db('users').insert(user).returning('*');
+  return row;
 }
 
 /**
  * Inserts a mock terminal into test database
  */
-function createTerminal(overrides = {}) {
+async function createTerminal(overrides = {}) {
   const terminal = {
     code: `T_${Math.random().toString(36).substring(7).toUpperCase()}`,
     name: 'Test Terminal Port',
     group_name: 'TEST_GRP',
     sort_order: 1,
     is_active: 1,
-    ...overrides
+    ...overrides,
   };
 
-  const stmt = connection.db.prepare(`
-    INSERT INTO terminals (code, name, group_name, sort_order, is_active)
-    VALUES (@code, @name, @group_name, @sort_order, @is_active)
-  `);
-  const info = stmt.run(terminal);
-
-  return { id: info.lastInsertRowid, ...terminal };
+  const [row] = await database.db('terminals').insert(terminal).returning('*');
+  return row;
 }
 
 /**
  * Inserts a mock vessel into test database
  */
-function createVessel(overrides = {}) {
+async function createVessel(overrides = {}) {
   const vessel = {
     vessel_name: 'TEST VESSEL SHIP',
     voy: 'V001',
@@ -63,20 +56,11 @@ function createVessel(overrides = {}) {
     next_port: 'SINGAPORE',
     remark: 'Normal traffic',
     updated_by: null,
-    ...overrides
+    ...overrides,
   };
 
-  const stmt = connection.db.prepare(`
-    INSERT INTO vessels (
-      vessel_name, voy, type, terminal_id, activity, eta, etb, etd, atd, status, next_port, remark, updated_by
-    )
-    VALUES (
-      @vessel_name, @voy, @type, @terminal_id, @activity, @eta, @etb, @etd, @atd, @status, @next_port, @remark, @updated_by
-    )
-  `);
-  const info = stmt.run(vessel);
-
-  return { id: info.lastInsertRowid, ...vessel };
+  const [row] = await database.db('vessels').insert(vessel).returning('*');
+  return row;
 }
 
 module.exports = {

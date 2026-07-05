@@ -13,7 +13,7 @@ class ArchiveService {
    * Purge records older than a set period (90 days by default)
    */
   async purgeOldArchive(days = 90) {
-    const deletedCount = archiveRepository.purge(days);
+    const deletedCount = await archiveRepository.purge(days);
     if (deletedCount > 0) {
       logger.info(`Purged ${deletedCount} archived vessel records older than ${days} days.`);
     }

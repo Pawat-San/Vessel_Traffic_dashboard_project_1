@@ -1,7 +1,7 @@
 const { setupTestDb, teardownTestDb } = require('../helpers/setup');
 const { createTerminal, createVessel, createUser } = require('../helpers/factory');
 const vesselService = require('../../src/modules/vessel/vessel.service');
-const connection = require('../../src/database/connection');
+const database = require('../../src/database/knex');
 const { ValidationError, NotFoundError } = require('../../src/utils/errors');
 
 describe('VesselService Unit Tests', () => {
@@ -10,27 +10,27 @@ describe('VesselService Unit Tests', () => {
 
   beforeAll(async () => {
     await setupTestDb();
-    
+
     // Seed prerequisite users and terminals
-    user = createUser({ username: 'operator1', role: 'operator' });
-    terminal = createTerminal({ code: 'LCB-T1', name: 'Laem Chabang T1' });
+    user = await createUser({ username: 'operator1', role: 'operator' });
+    terminal = await createTerminal({ code: 'LCB-T1', name: 'Laem Chabang T1' });
   });
 
   afterAll(async () => {
     await teardownTestDb();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     // Clean up vessels table between tests
-    connection.db.prepare('DELETE FROM vessels').run();
-    connection.db.prepare('DELETE FROM vessel_archive').run();
-    connection.db.prepare('DELETE FROM audit_logs').run();
+    await database.db('vessels').del();
+    await database.db('vessel_archive').del();
+    await database.db('audit_logs').del();
   });
 
   describe('getVessels()', () => {
     it('should sort vessels by ETA ascending by default', async () => {
-      createVessel({ vessel_name: 'VESSEL B', eta: '2026-07-02T10:00:00.000Z', terminal_id: terminal.id });
-      createVessel({ vessel_name: 'VESSEL A', eta: '2026-07-01T10:00:00.000Z', terminal_id: terminal.id });
+      await createVessel({ vessel_name: 'VESSEL B', eta: '2026-07-02T10:00:00.000Z', terminal_id: terminal.id });
+      await createVessel({ vessel_name: 'VESSEL A', eta: '2026-07-01T10:00:00.000Z', terminal_id: terminal.id });
 
       const res = await vesselService.getVessels();
 
@@ -39,8 +39,8 @@ describe('VesselService Unit Tests', () => {
     });
 
     it('should filter vessels by status', async () => {
-      createVessel({ vessel_name: 'SEA VESSEL', status: 'AT SEA', terminal_id: terminal.id });
-      createVessel({ vessel_name: 'BERTH VESSEL', status: 'BERTH', terminal_id: terminal.id });
+      await createVessel({ vessel_name: 'SEA VESSEL', status: 'AT SEA', terminal_id: terminal.id });
+      await createVessel({ vessel_name: 'BERTH VESSEL', status: 'BERTH', terminal_id: terminal.id });
 
       const res = await vesselService.getVessels({ status: 'BERTH' });
 
@@ -65,9 +65,9 @@ describe('VesselService Unit Tests', () => {
 
       expect(created.vessel_name).toBe('CONTAINER SHIP ALPHA');
       expect(created.updated_by).toBe(user.id);
-      
+
       // Verify Audit Log was written
-      const audit = connection.db.prepare('SELECT * FROM audit_logs WHERE action = ?').get('CREATE');
+      const audit = await database.db('audit_logs').where('action', 'CREATE').first();
       expect(audit).toBeDefined();
       expect(audit.entity_type).toBe('vessel');
       expect(audit.user_id).toBe(user.id);
@@ -93,20 +93,20 @@ describe('VesselService Unit Tests', () => {
     it('should move departed vessels with ATD > 24 hours to archive and delete original', async () => {
       // 1. Create a vessel departed 26 hours ago
       const expiredAtd = new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString();
-      const expiredVessel = createVessel({
+      await createVessel({
         vessel_name: 'EXPIRED SHIP',
         status: 'DEPART',
         atd: expiredAtd,
-        terminal_id: terminal.id
+        terminal_id: terminal.id,
       });
 
       // 2. Create a vessel departed only 2 hours ago (should not be archived)
       const recentAtd = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-      const recentVessel = createVessel({
+      await createVessel({
         vessel_name: 'RECENT SHIP',
         status: 'DEPART',
         atd: recentAtd,
-        terminal_id: terminal.id
+        terminal_id: terminal.id,
       });
 
       // Run archiving job
@@ -115,25 +115,25 @@ describe('VesselService Unit Tests', () => {
       expect(archivedCount).toBe(1);
 
       // Verify expired vessel was deleted from vessels table
-      const activeShip = connection.db.prepare('SELECT * FROM vessels WHERE vessel_name = ?').get('EXPIRED SHIP');
+      const activeShip = await database.db('vessels').where('vessel_name', 'EXPIRED SHIP').first();
       expect(activeShip).toBeUndefined();
 
       // Verify expired vessel exists in archive table
-      const archivedShip = connection.db.prepare('SELECT * FROM vessel_archive WHERE vessel_name = ?').get('EXPIRED SHIP');
+      const archivedShip = await database.db('vessel_archive').where('vessel_name', 'EXPIRED SHIP').first();
       expect(archivedShip).toBeDefined();
       expect(archivedShip.terminal_code).toBe(terminal.code);
 
       // Verify recent vessel is still active in vessels table
-      const recentActiveShip = connection.db.prepare('SELECT * FROM vessels WHERE vessel_name = ?').get('RECENT SHIP');
+      const recentActiveShip = await database.db('vessels').where('vessel_name', 'RECENT SHIP').first();
       expect(recentActiveShip).toBeDefined();
     });
 
     it('should not archive vessels that have no ATD', async () => {
-      createVessel({
+      await createVessel({
         vessel_name: 'NO ATD SHIP',
         status: 'AT SEA',
         atd: null,
-        terminal_id: terminal.id
+        terminal_id: terminal.id,
       });
 
       const archivedCount = await vesselService.archiveExpiredVessels(24);

@@ -1,5 +1,3 @@
-const { connect, close } = require('../../src/database/connection');
-const { runMigrations } = require('../../src/database/migrations/runner');
 const config = require('../../src/config');
 const logger = require('../../src/utils/logger');
 
@@ -9,23 +7,29 @@ logger.transports.forEach((t) => {
 });
 
 /**
- * Global test environment setup helper
+ * Global test environment setup helper.
+ *
+ * IMPORTANT: config.db.path must be repointed to ':memory:' BEFORE any module
+ * that touches src/database/knex.js's `db` getter is first accessed, since the
+ * underlying Knex instance is built (and cached) on first access. This helper
+ * must run before any repository/service code executes.
  */
 async function setupTestDb() {
-  // Override database path to in-memory for testing
   config.db.path = ':memory:';
-  
-  // Establish connection
-  const db = connect();
 
-  // Run initial migrations
-  await runMigrations();
+  // eslint-disable-next-line global-require
+  const database = require('../../src/database/knex');
+  const db = database.connect();
+
+  await db.migrate.latest();
 
   return db;
 }
 
 async function teardownTestDb() {
-  close();
+  // eslint-disable-next-line global-require
+  const database = require('../../src/database/knex');
+  await database.close();
 }
 
 module.exports = {

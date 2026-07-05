@@ -1,8 +1,6 @@
 const config = require('./config');
 const app = require('./app');
-const { connect } = require('./database/connection');
-const { runMigrations } = require('./database/migrations/runner');
-const { runSeeds } = require('./database/seeds/runner');
+const { db, close } = require('./database/knex');
 const { startArchiveJobs } = require('./jobs/archiveCleanup');
 const logger = require('./utils/logger');
 
@@ -13,23 +11,20 @@ async function bootstrap() {
   logger.info('Starting Vessel Traffic Dashboard Server bootstrap...');
 
   try {
-    // 1. Establish Database Connection singleton
-    const db = connect();
+    // 1. Run pending database migrations
+    await db.migrate.latest();
 
-    // 2. Execute Pending Database Migrations
-    await runMigrations();
-
-    // 3. Populate Database seeds if empty
-    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-    if (userCount === 0) {
+    // 2. Populate database seeds if empty
+    const { count } = await db('users').count({ count: '*' }).first();
+    if (Number(count) === 0) {
       logger.info('Database appears empty. Seeding initial configurations...');
-      await runSeeds();
+      await db.seed.run();
     }
 
-    // 4. Start Background Schedulers (Archive, purge)
+    // 3. Start Background Schedulers (Archive, purge)
     startArchiveJobs();
 
-    // 5. Start Listening on HTTP Port
+    // 4. Start Listening on HTTP Port
     const server = app.listen(config.port, () => {
       logger.info(`=== SERVER BOOTSTRAP COMPLETE ===`);
       logger.info(`Environment : ${config.env}`);
@@ -38,16 +33,15 @@ async function bootstrap() {
       logger.info(`Dashboard   : http://localhost:${config.port}`);
     });
 
-    // 6. Graceful Shutdown Handlers (SIGTERM, SIGINT)
+    // 5. Graceful Shutdown Handlers (SIGTERM, SIGINT)
     const handleGracefulShutdown = () => {
       logger.info('Termination signal received. Initiating graceful shutdown sequence...');
-      
-      server.close(() => {
+
+      server.close(async () => {
         logger.info('HTTP Server connection pool closed.');
-        
-        const { close: closeDb } = require('./database/connection');
-        closeDb();
-        
+
+        await close();
+
         logger.info('Process exited cleanly.');
         process.exit(0);
       });

@@ -80,6 +80,9 @@ class ApiClient {
       // Parse JSON
       const json = await response.json();
       if (!response.ok) {
+        if (json.error && json.error.code === 'PASSWORD_CHANGE_REQUIRED' && window.onPasswordChangeRequired) {
+          window.onPasswordChangeRequired();
+        }
         throw json; // throw error payload (matches standard response layout)
       }
 
