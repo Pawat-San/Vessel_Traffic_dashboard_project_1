@@ -22,6 +22,14 @@ const usersRoutes = require('./modules/users/users.routes');
 
 const app = express();
 
+// Trust the first hop reverse proxy (Render, and most PaaS hosts, sit in front
+// of the app). Without this, req.ip resolves to the proxy's internal address
+// for every request, which would make the per-IP rate limiter and login
+// lockout treat all users as a single client.
+if (config.isProd) {
+  app.set('trust proxy', 1);
+}
+
 // 1. Security Headers (Helmet.js)
 app.use(helmet({
   contentSecurityPolicy: {

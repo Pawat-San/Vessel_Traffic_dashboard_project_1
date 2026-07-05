@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: vessel-dashboard
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_CLIENT
+        value: pg
+      - key: DB_SSL
+        value: "true"
+      - key: SEED_DEMO_ACCOUNTS
+        value: "false"
+      # Auto-generated secure random values -- satisfies the fail-fast check
+      # in src/config/index.js without you having to generate them yourself.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: COOKIE_SECRET
+        generateValue: true
+      # Must be filled in manually in the Render dashboard after the first
+      # deploy (Render can't know these -- they come from your Supabase
+      # project and your own choice of superadmin credentials).
+      - key: SUPERADMIN_USERNAME
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
