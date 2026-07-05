@@ -47,11 +47,22 @@ const elements = {
   archiveStartDate: document.getElementById('archive-start-date'),
   archiveEndDate: document.getElementById('archive-end-date'),
   archiveSearchQuery: document.getElementById('archive-search-query'),
-  adminToolsContainer: document.getElementById('admin-tools-container')
+  adminToolsContainer: document.getElementById('admin-tools-container'),
+  accountsToolsContainer: document.getElementById('accounts-tools-container'),
+  accountsTableBody: document.getElementById('accounts-table-body'),
+  accountFormModalTitle: document.getElementById('account-form-modal-title'),
+  accountForm: document.getElementById('account-form'),
+  accountFormPasswordGroup: document.getElementById('account-form-password-group'),
+  accountFormActiveGroup: document.getElementById('account-form-active-group'),
+  accountFormRoleSuperadminOption: document.getElementById('account-form-role-superadmin'),
+  resetPasswordForm: document.getElementById('reset-password-form'),
+  forcePasswordForm: document.getElementById('force-password-form')
 };
 
 // Active editing vessel ID
 let editingVesselId = null;
+// Active editing account ID (null = create mode)
+let editingAccountId = null;
 
 /**
  * Initialize Dashboard
@@ -63,18 +74,43 @@ async function initDashboard() {
   // 2. Enforce Role Visibility Restrictions
   applyRoleVisibility();
 
-  // 3. Load Active Terminals
-  await fetchTerminals();
-
-  // 4. Fetch initial dataset
-  await refreshData();
-
-  // 5. Setup Listeners
+  // 3. Setup Listeners (needed even while locked, e.g. logout / force-password form)
   setupEventListeners();
 
-  // 6. Setup Auto-Refresh Interval (Every 60 seconds)
+  // 4. If a forced password change is pending, block the rest of the dashboard
+  const user = window.api.getUser();
+  if (user && user.mustChangePassword) {
+    showForcedPasswordChangeModal();
+    return;
+  }
+
+  // 5. Load Active Terminals
+  await fetchTerminals();
+
+  // 6. Fetch initial dataset
+  await refreshData();
+
+  // 7. Setup Auto-Refresh Interval (Every 60 seconds)
   setInterval(refreshData, 60000);
 }
+
+/**
+ * Show the blocking "set a new password" modal. Cannot be dismissed except by
+ * successfully submitting a new password.
+ */
+function showForcedPasswordChangeModal() {
+  window.components.openModal('force-password-modal');
+}
+
+/**
+ * Global hook invoked by api.js whenever ANY API call returns
+ * PASSWORD_CHANGE_REQUIRED (e.g. an admin reset this user's password
+ * mid-session), so the block applies immediately regardless of which part of
+ * the app triggered the request.
+ */
+window.onPasswordChangeRequired = function onPasswordChangeRequired() {
+  showForcedPasswordChangeModal();
+};
 
 /**
  * Applies client-side visibility restrictions based on RBAC user role
@@ -98,6 +134,17 @@ function applyRoleVisibility() {
   if (elements.adminToolsContainer) {
     elements.adminToolsContainer.style.display = isAdmin ? 'flex' : 'none';
   }
+
+  // Account management panel (admin + superadmin)
+  const isSuperadmin = user.role === 'superadmin';
+  if (elements.accountsToolsContainer) {
+    elements.accountsToolsContainer.style.display = (isAdmin || isSuperadmin) ? 'flex' : 'none';
+  }
+
+  // Only a superadmin can grant the superadmin role
+  if (elements.accountFormRoleSuperadminOption) {
+    elements.accountFormRoleSuperadminOption.style.display = isSuperadmin ? '' : 'none';
+  }
 }
 
 /**
@@ -113,6 +160,207 @@ async function fetchTerminals() {
     window.components.populateTerminalDropdown('form-terminal-id', state.terminals);
   } catch (err) {
     window.components.showToast('Failed to load terminals list', 'error');
+  }
+}
+
+/**
+ * Fetch accounts list and render the account management table
+ */
+async function fetchAccounts() {
+  try {
+    const res = await window.api.get('/users');
+    renderAccountsTable(res.data);
+  } catch (err) {
+    const msg = err.error ? err.error.message : 'Failed to load accounts';
+    window.components.showToast(msg, 'error');
+  }
+}
+
+/**
+ * Render the account management table. Superadmin rows are visible but
+ * immutable to Admin actors -- their action buttons are disabled, and the
+ * server independently rejects any attempt to mutate them regardless of the
+ * UI state here.
+ */
+function renderAccountsTable(accounts) {
+  const esc = window.utils.esc;
+  const actor = window.api.getUser();
+  const actorIsSuperadmin = actor.role === 'superadmin';
+
+  if (!accounts || accounts.length === 0) {
+    elements.accountsTableBody.innerHTML = `
+      <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No accounts found.</td></tr>
+    `;
+    return;
+  }
+
+  let html = '';
+  accounts.forEach((account) => {
+    const isTargetSuperadmin = account.role === 'superadmin';
+    const isSelf = account.id === actor.id;
+    const canManage = actorIsSuperadmin || !isTargetSuperadmin;
+    const disabledAttr = canManage ? '' : 'disabled title="Only a superadmin can manage superadmin accounts"';
+
+    html += `
+      <tr class="fids-row">
+        <td class="fids-cell">${esc(account.username)}${isSelf ? ' <span style="color: var(--text-muted);">(you)</span>' : ''}</td>
+        <td class="fids-cell">${esc(account.display_name)}</td>
+        <td class="fids-cell"><span class="role ${esc(account.role)}">${esc(account.role)}</span></td>
+        <td class="fids-cell">${account.is_active ? 'Active' : 'Deactivated'}</td>
+        <td class="fids-cell action-cell">
+          <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="edit" data-id="${account.id}" ${disabledAttr}>Edit</button>
+          <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="reset" data-id="${account.id}" ${disabledAttr}>Reset PW</button>
+          <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="deactivate" data-id="${account.id}" ${disabledAttr || (isSelf ? 'disabled' : '')}>Deactivate</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  elements.accountsTableBody.innerHTML = html;
+}
+
+/**
+ * Open the account form modal in "create" mode
+ */
+function onCreateAccountClick() {
+  editingAccountId = null;
+  elements.accountFormModalTitle.textContent = 'New Account';
+  elements.accountForm.reset();
+  document.getElementById('account-form-username').disabled = false;
+  elements.accountFormPasswordGroup.style.display = '';
+  document.getElementById('account-form-password').required = true;
+  elements.accountFormActiveGroup.style.display = 'none';
+  window.components.openModal('account-form-modal');
+}
+
+/**
+ * Open the account form modal in "edit" mode for a given account
+ */
+async function onEditAccountClick(id) {
+  try {
+    const res = await window.api.get(`/users/${id}`);
+    const account = res.data;
+
+    editingAccountId = id;
+    elements.accountFormModalTitle.textContent = `Edit Account - ${account.username}`;
+    document.getElementById('account-form-username').value = account.username;
+    document.getElementById('account-form-username').disabled = true;
+    elements.accountFormPasswordGroup.style.display = 'none';
+    document.getElementById('account-form-password').required = false;
+    document.getElementById('account-form-display-name').value = account.display_name;
+    document.getElementById('account-form-role').value = account.role;
+    elements.accountFormActiveGroup.style.display = '';
+    document.getElementById('account-form-active').checked = Boolean(account.is_active);
+
+    window.components.openModal('account-form-modal');
+  } catch (err) {
+    window.components.showToast('Failed to load account details', 'error');
+  }
+}
+
+/**
+ * Handle account create/edit form submission
+ */
+async function onAccountFormSubmit(event) {
+  event.preventDefault();
+
+  try {
+    if (editingAccountId) {
+      const payload = {
+        display_name: document.getElementById('account-form-display-name').value,
+        role: document.getElementById('account-form-role').value,
+        is_active: document.getElementById('account-form-active').checked,
+      };
+      await window.api.put(`/users/${editingAccountId}`, payload);
+      window.components.showToast('Account updated successfully', 'success');
+    } else {
+      const payload = {
+        username: document.getElementById('account-form-username').value,
+        password: document.getElementById('account-form-password').value,
+        display_name: document.getElementById('account-form-display-name').value,
+        role: document.getElementById('account-form-role').value,
+      };
+      await window.api.post('/users', payload);
+      window.components.showToast('Account created successfully', 'success');
+    }
+
+    window.components.closeModal('account-form-modal');
+    fetchAccounts();
+  } catch (error) {
+    const msg = error.error ? error.error.message : 'Failed to save account';
+    window.components.showToast(msg, 'error');
+  }
+}
+
+/**
+ * Open the reset-password modal for a given account
+ */
+function onResetPasswordClick(id) {
+  editingAccountId = id;
+  elements.resetPasswordForm.reset();
+  window.components.openModal('reset-password-modal');
+}
+
+/**
+ * Handle admin-initiated password reset submission
+ */
+async function onResetPasswordFormSubmit(event) {
+  event.preventDefault();
+
+  try {
+    const newPassword = document.getElementById('reset-password-new').value;
+    await window.api.post(`/users/${editingAccountId}/reset-password`, { new_password: newPassword });
+    window.components.showToast('Password reset successfully', 'success');
+    window.components.closeModal('reset-password-modal');
+  } catch (error) {
+    const msg = error.error ? error.error.message : 'Failed to reset password';
+    window.components.showToast(msg, 'error');
+  }
+}
+
+/**
+ * Deactivate an account (soft delete)
+ */
+async function onDeactivateAccountClick(id) {
+  if (!confirm('Are you sure you want to deactivate this account?')) {
+    return;
+  }
+
+  try {
+    await window.api.delete(`/users/${id}`);
+    window.components.showToast('Account deactivated successfully', 'success');
+    fetchAccounts();
+  } catch (err) {
+    const msg = err.error ? err.error.message : 'Failed to deactivate account';
+    window.components.showToast(msg, 'error');
+  }
+}
+
+/**
+ * Handle the forced password change form (blocking modal)
+ */
+async function onForcePasswordFormSubmit(event) {
+  event.preventDefault();
+
+  try {
+    const newPassword = document.getElementById('force-password-new').value;
+    await window.api.post('/users/me/change-password', { new_password: newPassword });
+
+    // Update the cached user so the (now-cleared) flag doesn't re-trigger this
+    // same modal on reload -- the server has already cleared it, but the
+    // locally cached copy from login must be refreshed to match.
+    const user = window.api.getUser();
+    if (user) {
+      user.mustChangePassword = false;
+      window.api.setUser(user);
+    }
+
+    window.components.showToast('Password changed successfully', 'success');
+    window.components.closeModal('force-password-modal');
+    window.location.reload();
+  } catch (error) {
+    const msg = error.error ? error.error.message : 'Failed to change password';
+    window.components.showToast(msg, 'error');
   }
 }
 
@@ -252,20 +500,21 @@ function renderVesselsTable() {
       </td>
     `;
 
+    const esc = window.utils.esc;
     html += `
       <tr class="fids-row" id="vessel-row-${v.id}">
-        <td class="fids-cell vessel-name-cell" data-label="Vessel Name">${v.vessel_name}</td>
-        <td class="fids-cell voy-cell" data-label="VOY">${v.voy || '-'}</td>
-        <td class="fids-cell" data-label="Type">${v.type}</td>
-        <td class="fids-cell" data-label="Terminal"><span class="terminal-badge">${v.terminal_code}</span></td>
-        <td class="fids-cell" data-label="Activity"><span class="activity-badge">${v.activity}</span></td>
+        <td class="fids-cell vessel-name-cell" data-label="Vessel Name">${esc(v.vessel_name)}</td>
+        <td class="fids-cell voy-cell" data-label="VOY">${esc(v.voy) || '-'}</td>
+        <td class="fids-cell" data-label="Type">${esc(v.type)}</td>
+        <td class="fids-cell" data-label="Terminal"><span class="terminal-badge">${esc(v.terminal_code)}</span></td>
+        <td class="fids-cell" data-label="Activity"><span class="activity-badge">${esc(v.activity)}</span></td>
         <td class="fids-cell time-cell" data-label="ETA">${window.utils.formatDateTime(v.eta)}</td>
         <td class="fids-cell time-cell" data-label="ETB">${window.utils.formatDateTime(v.etb)}</td>
         <td class="fids-cell time-cell" data-label="ETD">${window.utils.formatDateTime(v.etd)}</td>
         <td class="fids-cell time-cell" data-label="ATD">${window.utils.formatDateTime(v.atd)}</td>
         <td class="fids-cell" data-label="Status">
           <span class="status-badge ${v.status.toLowerCase().replace(' ', '-')} ${animationClass}">
-            ${v.status}
+            ${esc(v.status)}
           </span>
         </td>
         ${actionCellHtml}
@@ -391,6 +640,57 @@ function setupEventListeners() {
 
   if (elements.vesselForm) {
     elements.vesselForm.addEventListener('submit', onVesselFormSubmit);
+  }
+
+  // Account Management
+  const manageAccountsBtn = document.getElementById('manage-accounts-btn');
+  if (manageAccountsBtn) {
+    manageAccountsBtn.addEventListener('click', () => {
+      window.components.openModal('accounts-modal');
+      fetchAccounts();
+    });
+  }
+
+  const createAccountBtn = document.getElementById('create-account-btn');
+  if (createAccountBtn) createAccountBtn.addEventListener('click', onCreateAccountClick);
+
+  const closeAccountsTop = document.getElementById('accounts-modal-close-top');
+  if (closeAccountsTop) closeAccountsTop.addEventListener('click', () => window.components.closeModal('accounts-modal'));
+  const closeAccountsBottom = document.getElementById('accounts-modal-close-bottom');
+  if (closeAccountsBottom) closeAccountsBottom.addEventListener('click', () => window.components.closeModal('accounts-modal'));
+
+  const closeAccountFormTop = document.getElementById('account-form-modal-close-top');
+  if (closeAccountFormTop) closeAccountFormTop.addEventListener('click', () => window.components.closeModal('account-form-modal'));
+  const closeAccountFormBottom = document.getElementById('account-form-close-bottom');
+  if (closeAccountFormBottom) closeAccountFormBottom.addEventListener('click', () => window.components.closeModal('account-form-modal'));
+
+  if (elements.accountForm) {
+    elements.accountForm.addEventListener('submit', onAccountFormSubmit);
+  }
+
+  const closeResetPasswordTop = document.getElementById('reset-password-modal-close-top');
+  if (closeResetPasswordTop) closeResetPasswordTop.addEventListener('click', () => window.components.closeModal('reset-password-modal'));
+  const closeResetPasswordBottom = document.getElementById('reset-password-close-bottom');
+  if (closeResetPasswordBottom) closeResetPasswordBottom.addEventListener('click', () => window.components.closeModal('reset-password-modal'));
+
+  if (elements.resetPasswordForm) {
+    elements.resetPasswordForm.addEventListener('submit', onResetPasswordFormSubmit);
+  }
+
+  if (elements.forcePasswordForm) {
+    elements.forcePasswordForm.addEventListener('submit', onForcePasswordFormSubmit);
+  }
+
+  if (elements.accountsTableBody) {
+    elements.accountsTableBody.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn || btn.disabled) return;
+      const id = btn.getAttribute('data-id');
+      const action = btn.getAttribute('data-action');
+      if (action === 'edit') onEditAccountClick(id);
+      if (action === 'reset') onResetPasswordClick(id);
+      if (action === 'deactivate') onDeactivateAccountClick(id);
+    });
   }
 
   // Event Delegation for Table Actions
@@ -599,16 +899,17 @@ async function onSearchArchiveClick() {
     }
 
     let html = '';
+    const esc = window.utils.esc;
     archived.forEach((v) => {
       html += `
         <tr class="fids-row">
-          <td class="fids-cell font-weight-bold" style="color: #fff;">${v.vessel_name}</td>
-          <td class="fids-cell voy-cell">${v.voy || '-'}</td>
-          <td class="fids-cell"><span class="terminal-badge">${v.terminal_code}</span></td>
+          <td class="fids-cell font-weight-bold" style="color: #fff;">${esc(v.vessel_name)}</td>
+          <td class="fids-cell voy-cell">${esc(v.voy) || '-'}</td>
+          <td class="fids-cell"><span class="terminal-badge">${esc(v.terminal_code)}</span></td>
           <td class="fids-cell time-cell">${window.utils.formatDateTime(v.eta)}</td>
           <td class="fids-cell time-cell">${window.utils.formatDateTime(v.atd)}</td>
           <td class="fids-cell time-cell">${window.utils.formatDateTime(v.archived_at)}</td>
-          <td class="fids-cell" style="font-size: 0.8rem; color: var(--text-muted);">${v.updated_by_name || '-'}</td>
+          <td class="fids-cell" style="font-size: 0.8rem; color: var(--text-muted);">${esc(v.updated_by_name) || '-'}</td>
         </tr>
       `;
     });

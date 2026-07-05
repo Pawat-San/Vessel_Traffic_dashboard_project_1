@@ -71,9 +71,10 @@ function renderHeaderUserBadge(user) {
   const badgeContainer = document.getElementById('user-badge-container');
   if (!badgeContainer) return;
 
+  const esc = window.utils.esc;
   badgeContainer.innerHTML = `
-    <span class="display-name">${user.displayName}</span>
-    <span class="role ${user.role}">${user.role}</span>
+    <span class="display-name">${esc(user.displayName)}</span>
+    <span class="role ${esc(user.role)}">${esc(user.role)}</span>
   `;
 }
 

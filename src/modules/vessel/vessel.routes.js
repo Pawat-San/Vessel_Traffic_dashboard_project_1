@@ -2,6 +2,7 @@ const express = require('express');
 const vesselController = require('./vessel.controller');
 const authenticate = require('../../middleware/authenticate');
 const authorize = require('../../middleware/authorize');
+const requirePasswordChange = require('../../middleware/requirePasswordChange');
 const validate = require('../../middleware/validate');
 const { createVesselSchema, updateVesselSchema, queryVesselSchema } = require('./vessel.schema');
 
@@ -9,6 +10,7 @@ const router = express.Router();
 
 // All vessel routes require authentication
 router.use(authenticate);
+router.use(requirePasswordChange);
 
 // View endpoints (Admin, Operator, Viewer can access)
 router.get('/', validate.query(queryVesselSchema), vesselController.getVessels);

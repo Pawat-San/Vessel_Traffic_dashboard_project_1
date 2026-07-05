@@ -27,7 +27,7 @@ function showToast(message, type = 'info') {
 
   toast.innerHTML = `
     <span class="toast-icon">${icon}</span>
-    <span class="toast-message">${message}</span>
+    <span class="toast-message">${window.utils.esc(message)}</span>
   `;
 
   container.appendChild(toast);

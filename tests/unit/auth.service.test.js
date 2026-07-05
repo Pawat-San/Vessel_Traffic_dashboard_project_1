@@ -15,7 +15,7 @@ describe('AuthService Unit Tests', () => {
   describe('login()', () => {
     it('should successfully authenticate active users and issue JWTs', async () => {
       // Seed user
-      const user = createUser({
+      await createUser({
         username: 'testadmin',
         password: 'adminpassword',
         display_name: 'Test Administrator',
@@ -45,7 +45,7 @@ describe('AuthService Unit Tests', () => {
 
   describe('refresh()', () => {
     it('should issue new access tokens when given a valid refresh token', async () => {
-      const user = createUser({
+      const user = await createUser({
         username: 'refresher',
         password: 'password123',
       });
@@ -72,7 +72,7 @@ describe('AuthService Unit Tests', () => {
 
   describe('logout()', () => {
     it('should nullify the refresh token hash on user logout', async () => {
-      const user = createUser({
+      const user = await createUser({
         username: 'logoutuser',
         password: 'password123',
       });

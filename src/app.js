@@ -18,6 +18,7 @@ const authRoutes = require('./modules/auth/auth.routes');
 const terminalRoutes = require('./modules/terminal/terminal.routes');
 const vesselRoutes = require('./modules/vessel/vessel.routes');
 const archiveRoutes = require('./modules/archive/archive.routes');
+const usersRoutes = require('./modules/users/users.routes');
 
 const app = express();
 
@@ -84,6 +85,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/terminals', terminalRoutes);
 app.use('/api/vessels', vesselRoutes);
 app.use('/api/archive', archiveRoutes);
+app.use('/api/users', usersRoutes);
 
 // 10. Handle unknown API routes (404)
 app.all('/api/*', (req, res, next) => {

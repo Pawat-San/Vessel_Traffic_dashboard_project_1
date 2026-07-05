@@ -29,6 +29,12 @@ class AuthorizationError extends AppError {
   }
 }
 
+class PasswordChangeRequiredError extends AppError {
+  constructor(message = 'Password change required before continuing') {
+    super(message, 403, 'PASSWORD_CHANGE_REQUIRED');
+  }
+}
+
 class NotFoundError extends AppError {
   constructor(message = 'Resource not found') {
     super(message, 404, 'NOT_FOUND_ERROR');
@@ -52,6 +58,7 @@ module.exports = {
   ValidationError,
   AuthenticationError,
   AuthorizationError,
+  PasswordChangeRequiredError,
   NotFoundError,
   ConflictError,
   InternalError,

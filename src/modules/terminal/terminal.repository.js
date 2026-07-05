@@ -1,59 +1,51 @@
-const connection = require('../../database/connection');
+const database = require('../../database/knex');
 
 class TerminalRepository {
   /**
    * Find all terminals sorted by sort_order
    */
-  findAll() {
-    return connection.db.prepare('SELECT * FROM terminals ORDER BY sort_order ASC').all();
+  async findAll(conn = database.db) {
+    return conn('terminals').orderBy('sort_order', 'asc');
   }
 
   /**
    * Find only active terminals sorted by sort_order
    */
-  findActive() {
-    return connection.db.prepare('SELECT * FROM terminals WHERE is_active = 1 ORDER BY sort_order ASC').all();
+  async findActive(conn = database.db) {
+    return conn('terminals').where('is_active', 1).orderBy('sort_order', 'asc');
   }
 
   /**
    * Find a terminal by ID
    */
-  findById(id) {
-    return connection.db.prepare('SELECT * FROM terminals WHERE id = ?').get(id);
+  async findById(id, conn = database.db) {
+    return conn('terminals').where('id', id).first();
   }
 
   /**
    * Find a terminal by its code
    */
-  findByCode(code) {
-    return connection.db.prepare('SELECT * FROM terminals WHERE code = ?').get(code);
+  async findByCode(code, conn = database.db) {
+    return conn('terminals').where('code', code).first();
   }
 
   /**
    * Create a new terminal
    */
-  create(data) {
-    const stmt = connection.db.prepare(`
-      INSERT INTO terminals (code, name, group_name, sort_order, is_active)
-      VALUES (@code, @name, @group_name, @sort_order, @is_active)
-    `);
-    const info = stmt.run(data);
-    return { id: info.lastInsertRowid, ...data };
+  async create(data, conn = database.db) {
+    const [row] = await conn('terminals').insert(data).returning('*');
+    return row;
   }
 
   /**
    * Update an existing terminal
    */
-  update(id, data) {
-    const existing = this.findById(id);
+  async update(id, data, conn = database.db) {
+    const existing = await this.findById(id, conn);
     if (!existing) return null;
 
     const merged = { ...existing, ...data };
-    connection.db.prepare(`
-      UPDATE terminals
-      SET code = @code, name = @name, group_name = @group_name, sort_order = @sort_order, is_active = @is_active
-      WHERE id = @id
-    `).run({ id, ...merged });
+    await conn('terminals').where('id', id).update(merged);
 
     return merged;
   }
@@ -61,11 +53,11 @@ class TerminalRepository {
   /**
    * Delete a terminal by ID
    */
-  delete(id) {
-    const existing = this.findById(id);
+  async delete(id, conn = database.db) {
+    const existing = await this.findById(id, conn);
     if (!existing) return false;
 
-    connection.db.prepare('DELETE FROM terminals WHERE id = ?').run(id);
+    await conn('terminals').where('id', id).del();
     return true;
   }
 }

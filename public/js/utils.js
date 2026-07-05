@@ -3,6 +3,19 @@
  */
 
 /**
+ * Escape a value for safe interpolation into innerHTML.
+ */
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[c]));
+}
+
+/**
  * Format ISO datetime string to a beautiful, clean display format
  * Example: 2026-07-01T15:30:00.000Z -> 01 Jul 2026 15:30
  */
@@ -116,6 +129,7 @@ initTheme();
 
 // Export functions to global scope
 window.utils = {
+  esc,
   formatDateTime,
   startLiveClock,
   exportVesselsToCSV,

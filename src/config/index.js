@@ -6,6 +6,30 @@ dotenv.config();
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 
+const FALLBACK_SECRETS = {
+  JWT_SECRET: 'fallback-jwt-secret-dev',
+  JWT_REFRESH_SECRET: 'fallback-jwt-refresh-secret-dev',
+  COOKIE_SECRET: 'fallback-cookie-secret-dev',
+};
+
+if (nodeEnv === 'production') {
+  const problems = [];
+  for (const [envVar, fallbackValue] of Object.entries(FALLBACK_SECRETS)) {
+    const value = process.env[envVar];
+    if (!value) {
+      problems.push(`${envVar} is not set`);
+    } else if (value === fallbackValue) {
+      problems.push(`${envVar} is set to the insecure default fallback value`);
+    }
+  }
+  if (problems.length > 0) {
+    throw new Error(
+      `Refusing to start in production with insecure secrets:\n  - ${problems.join('\n  - ')}\n` +
+      'Set real, unique values for JWT_SECRET, JWT_REFRESH_SECRET, and COOKIE_SECRET before deploying.'
+    );
+  }
+}
+
 module.exports = {
   env: nodeEnv,
   isDev: nodeEnv === 'development',
@@ -34,7 +58,14 @@ module.exports = {
   },
   
   db: {
+    client: process.env.DB_CLIENT === 'pg' ? 'pg' : 'sqlite',
     path: process.env.DB_PATH || path.join(__dirname, '../../data/dashboard.db'),
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    name: process.env.DB_NAME,
+    ssl: process.env.DB_SSL === 'true',
   },
 
   logging: {
