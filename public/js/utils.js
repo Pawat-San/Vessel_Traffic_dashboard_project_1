@@ -26,8 +26,8 @@ function formatDateTime(isoString) {
     if (isNaN(d.getTime())) return '-';
     
     const day = String(d.getDate()).padStart(2, '0');
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const month = months[d.getFullMonth()];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[d.getMonth()];
     const year = d.getFullYear();
     const hours = String(d.getHours()).padStart(2, '0');
     const minutes = String(d.getMinutes()).padStart(2, '0');
@@ -109,16 +109,93 @@ function exportVesselsToCSV(vessels) {
   downloadCSV(`vessels_traffic_${timestamp}.csv`, csvContent);
 }
 
+// Column order used for the bulk-import template (and expected on parse).
+// Mirrors the Export column order so an exported file can be re-imported.
+const IMPORT_COLUMNS = [
+  'vessel_name', 'voy', 'type', 'terminal_code', 'activity',
+  'eta', 'etb', 'etd', 'atd', 'status', 'next_port', 'remark',
+];
+
+/**
+ * Download a blank CSV template with the import header row plus one example row.
+ */
+function downloadImportTemplate() {
+  const example = [
+    'EVER GIVEN', '0422-003', 'Container', 'A1', 'L',
+    '2026-07-10T14:30', '2026-07-10T16:00', '2026-07-11T02:00', '', 'AT SEA',
+    'SINGAPORE', 'Sample row - delete before import',
+  ];
+  const csv = [
+    IMPORT_COLUMNS.join(','),
+    example.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','),
+  ].join('\n');
+  downloadCSV('vessels_import_template.csv', csv);
+}
+
+/**
+ * Minimal RFC-4180-ish CSV parser: handles quoted fields, escaped quotes ("")
+ * and commas/newlines inside quotes. Returns an array of row objects keyed by
+ * the header row. Good enough for spreadsheet exports; not a full CSV engine.
+ */
+function parseCSV(text) {
+  const rows = [];
+  let field = '';
+  let row = [];
+  let inQuotes = false;
+
+  // Normalize newlines and strip a leading BOM if present.
+  const src = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (src[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      row.push(field); field = '';
+    } else if (c === '\n') {
+      row.push(field); field = '';
+      rows.push(row); row = [];
+    } else {
+      field += c;
+    }
+  }
+  // Flush trailing field/row (file may not end with newline).
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  // Drop fully-empty rows (e.g. trailing blank line).
+  const nonEmpty = rows.filter((r) => r.some((cell) => cell.trim() !== ''));
+  if (nonEmpty.length === 0) return [];
+
+  const headers = nonEmpty[0].map((h) => h.trim());
+  return nonEmpty.slice(1).map((r) => {
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = (r[idx] !== undefined ? r[idx].trim() : ''); });
+    return obj;
+  });
+}
+
 /**
  * Theme toggle logic
  */
 function initTheme() {
-  const savedTheme = localStorage.getItem('theme') || 'dark';
+  // Default to the clean white board on first visit; users can still switch to
+  // the dark FIDS theme via the toggle (persisted in localStorage).
+  const savedTheme = localStorage.getItem('theme') || 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
 function toggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
   const nextTheme = current === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', nextTheme);
   localStorage.setItem('theme', nextTheme);
@@ -133,5 +210,8 @@ window.utils = {
   formatDateTime,
   startLiveClock,
   exportVesselsToCSV,
+  downloadImportTemplate,
+  parseCSV,
+  IMPORT_COLUMNS,
   toggleTheme
 };

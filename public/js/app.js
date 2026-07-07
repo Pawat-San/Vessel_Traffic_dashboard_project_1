@@ -123,11 +123,15 @@ function applyRoleVisibility() {
   const isOperator = user.role === 'operator';
   const isViewer = user.role === 'viewer';
 
-  // "Add Vessel" button visibility
+  // "Add Vessel" + "Import CSV" buttons: admin/operator only.
+  // Export CSV and View Archive stay visible to everyone, including viewers.
+  const importCsvBtn = document.getElementById('import-csv-btn');
   if (isViewer) {
     if (elements.addVesselBtn) elements.addVesselBtn.style.display = 'none';
+    if (importCsvBtn) importCsvBtn.style.display = 'none';
   } else {
     if (elements.addVesselBtn) elements.addVesselBtn.style.display = 'inline-flex';
+    if (importCsvBtn) importCsvBtn.style.display = 'inline-flex';
   }
 
   // Admin panel maintenance actions (archive trigger, purge)
@@ -475,7 +479,7 @@ function renderVesselsTable() {
   if (state.vessels.length === 0) {
     elements.vesselsTableBody.innerHTML = `
       <tr>
-        <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+        <td colspan="12" style="text-align: center; color: var(--text-muted); padding: 3rem;">
           No active vessel traffic matching the selected filters.
         </td>
       </tr>
@@ -517,6 +521,8 @@ function renderVesselsTable() {
             ${esc(v.status)}
           </span>
         </td>
+        <td class="fids-cell next-port-cell" data-label="Next Port">${esc(v.next_port) || '-'}</td>
+        <td class="fids-cell notes-cell" data-label="Notes">${esc(v.remark) || '-'}</td>
         ${actionCellHtml}
       </tr>
     `;
@@ -616,6 +622,24 @@ function setupEventListeners() {
   
   const exportCsvBtn = document.getElementById('export-csv-btn');
   if (exportCsvBtn) exportCsvBtn.addEventListener('click', onExportCSVClick);
+
+  // Bulk CSV Import
+  const importCsvBtn = document.getElementById('import-csv-btn');
+  if (importCsvBtn) importCsvBtn.addEventListener('click', onOpenImportClick);
+
+  const importTemplateBtn = document.getElementById('import-template-btn');
+  if (importTemplateBtn) importTemplateBtn.addEventListener('click', () => window.utils.downloadImportTemplate());
+
+  const importFileInput = document.getElementById('import-file-input');
+  if (importFileInput) importFileInput.addEventListener('change', onImportFileChange);
+
+  const importConfirmBtn = document.getElementById('import-confirm-btn');
+  if (importConfirmBtn) importConfirmBtn.addEventListener('click', onConfirmImportClick);
+
+  const closeImportTop = document.getElementById('import-modal-close-top');
+  if (closeImportTop) closeImportTop.addEventListener('click', () => window.components.closeModal('import-modal'));
+  const closeImportBottom = document.getElementById('import-modal-close-bottom');
+  if (closeImportBottom) closeImportBottom.addEventListener('click', () => window.components.closeModal('import-modal'));
   
   const triggerArchiveBtn = document.getElementById('trigger-archive-btn');
   if (triggerArchiveBtn) triggerArchiveBtn.addEventListener('click', onTriggerArchiveClick);
@@ -850,6 +874,179 @@ async function onExportCSVClick() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Bulk CSV Import
+// ---------------------------------------------------------------------------
+
+// Rows parsed + validated from the currently selected file. Only valid rows
+// are sent to the server on confirm.
+let importParsedRows = [];
+
+const VALID_TYPES = ['Container', 'Bulk', 'Tanker', 'General', 'RoRo', 'LPG', 'Passenger'];
+const VALID_ACTIVITIES = ['L', 'D', 'B', 'DD', 'LD', 'LB', 'DB', 'LDB', 'L,D', 'L,B', 'D,B', 'L,D,B'];
+const VALID_STATUSES = ['AT SEA', 'ANCHOR', 'BERTH', 'DEPART'];
+
+/**
+ * Open the import modal in a clean state.
+ */
+function onOpenImportClick() {
+  importParsedRows = [];
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('import-preview-wrapper').style.display = 'none';
+  document.getElementById('import-preview-body').innerHTML = '';
+  document.getElementById('import-summary').innerHTML = '';
+  document.getElementById('import-confirm-btn').disabled = true;
+  window.components.openModal('import-modal');
+}
+
+/**
+ * Validate a single parsed CSV row against the same rules the vessel form uses.
+ * Returns { valid, reason, payload }.
+ */
+function validateImportRow(raw) {
+  const terminalCodes = new Set(state.terminals.map((t) => String(t.code).toUpperCase()));
+  const name = (raw.vessel_name || '').trim();
+  const type = (raw.type || '').trim();
+  const terminalCode = (raw.terminal_code || '').trim();
+  const activity = (raw.activity || '').trim();
+  const status = (raw.status || '').trim().toUpperCase();
+
+  if (!name) return { valid: false, reason: 'Missing vessel_name' };
+  if (!VALID_TYPES.includes(type)) return { valid: false, reason: `Invalid type "${type}"` };
+  if (!terminalCode) return { valid: false, reason: 'Missing terminal_code' };
+  if (!terminalCodes.has(terminalCode.toUpperCase())) return { valid: false, reason: `Unknown terminal "${terminalCode}"` };
+  if (!VALID_ACTIVITIES.includes(activity)) return { valid: false, reason: `Invalid activity "${activity}"` };
+  if (!VALID_STATUSES.includes(status)) return { valid: false, reason: `Invalid status "${raw.status || ''}"` };
+
+  // Optional dates: if present, must be parseable. Send ISO to the server.
+  const dates = {};
+  for (const field of ['eta', 'etb', 'etd', 'atd']) {
+    const val = (raw[field] || '').trim();
+    if (!val) { dates[field] = null; continue; }
+    const parsed = new Date(val);
+    if (isNaN(parsed.getTime())) return { valid: false, reason: `Invalid ${field} "${val}"` };
+    dates[field] = parsed.toISOString();
+  }
+
+  const payload = {
+    vessel_name: name,
+    voy: (raw.voy || '').trim() || null,
+    type,
+    terminal_code: terminalCode,
+    activity,
+    status,
+    next_port: (raw.next_port || '').trim() || null,
+    remark: (raw.remark || '').trim() || null,
+    ...dates,
+  };
+
+  return { valid: true, reason: '', payload };
+}
+
+/**
+ * Parse the chosen CSV file and render a validation preview.
+ */
+function onImportFileChange(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    let rows;
+    try {
+      rows = window.utils.parseCSV(String(reader.result));
+    } catch (err) {
+      window.components.showToast('Could not parse the CSV file', 'error');
+      return;
+    }
+
+    if (!rows.length) {
+      window.components.showToast('No data rows found in the file', 'warning');
+      return;
+    }
+
+    importParsedRows = rows.map((raw, idx) => ({ index: idx + 1, raw, ...validateImportRow(raw) }));
+    renderImportPreview();
+  };
+  reader.onerror = () => window.components.showToast('Failed to read the file', 'error');
+  reader.readAsText(file);
+}
+
+/**
+ * Render the preview table + summary and enable/disable the confirm button.
+ */
+function renderImportPreview() {
+  const esc = window.utils.esc;
+  const validCount = importParsedRows.filter((r) => r.valid).length;
+  const invalidCount = importParsedRows.length - validCount;
+
+  document.getElementById('import-summary').innerHTML = `
+    <span class="import-badge ok">${validCount} valid</span>
+    <span class="import-badge bad">${invalidCount} invalid</span>
+    <span style="color: var(--text-muted); font-size: 0.85rem;">
+      Only valid rows will be imported.
+    </span>
+  `;
+
+  let html = '';
+  importParsedRows.forEach((r) => {
+    const badge = r.valid
+      ? '<span class="import-row-flag ok">✓</span>'
+      : '<span class="import-row-flag bad">✗</span>';
+    html += `
+      <tr class="fids-row ${r.valid ? '' : 'import-row-invalid'}">
+        <td class="fids-cell">${r.index}</td>
+        <td class="fids-cell">${badge}</td>
+        <td class="fids-cell">${esc(r.raw.vessel_name) || '-'}</td>
+        <td class="fids-cell">${esc(r.raw.terminal_code) || '-'}</td>
+        <td class="fids-cell">${esc(r.raw.type) || '-'}</td>
+        <td class="fids-cell">${esc(r.raw.activity) || '-'}</td>
+        <td class="fids-cell">${esc(r.raw.status) || '-'}</td>
+        <td class="fids-cell" style="color: var(--color-depart);">${esc(r.reason)}</td>
+      </tr>
+    `;
+  });
+
+  document.getElementById('import-preview-body').innerHTML = html;
+  document.getElementById('import-preview-wrapper').style.display = 'block';
+  document.getElementById('import-confirm-btn').disabled = validCount === 0;
+}
+
+/**
+ * Send the valid rows to the bulk import endpoint.
+ */
+async function onConfirmImportClick() {
+  const validRows = importParsedRows.filter((r) => r.valid).map((r) => r.payload);
+  if (validRows.length === 0) return;
+
+  const confirmBtn = document.getElementById('import-confirm-btn');
+  confirmBtn.disabled = true;
+
+  try {
+    window.components.showToast(`Importing ${validRows.length} vessel(s)...`, 'info');
+    const res = await window.api.post('/vessels/import', { vessels: validRows });
+    const { inserted, failed } = res.data;
+
+    if (failed && failed.length > 0) {
+      window.components.showToast(`Imported ${inserted}, ${failed.length} rejected by server`, 'warning');
+    } else {
+      window.components.showToast(`Successfully imported ${inserted} vessel(s)`, 'success');
+    }
+
+    window.components.closeModal('import-modal');
+    refreshData();
+  } catch (error) {
+    let msg = 'Import failed';
+    if (error.error && error.error.details) {
+      msg = error.error.details.map((d) => `${d.field}: ${d.message}`).join(', ');
+    } else if (error.error) {
+      msg = error.error.message;
+    }
+    window.components.showToast(msg, 'error');
+    confirmBtn.disabled = false;
+  }
+}
+
 /**
  * Open Archive Modal
  */
@@ -903,7 +1100,7 @@ async function onSearchArchiveClick() {
     archived.forEach((v) => {
       html += `
         <tr class="fids-row">
-          <td class="fids-cell font-weight-bold" style="color: #fff;">${esc(v.vessel_name)}</td>
+          <td class="fids-cell vessel-name-cell">${esc(v.vessel_name)}</td>
           <td class="fids-cell voy-cell">${esc(v.voy) || '-'}</td>
           <td class="fids-cell"><span class="terminal-badge">${esc(v.terminal_code)}</span></td>
           <td class="fids-cell time-cell">${window.utils.formatDateTime(v.eta)}</td>
@@ -957,6 +1154,8 @@ window.onEditVesselClick = onEditVesselClick;
 window.onVesselFormSubmit = onVesselFormSubmit;
 window.onDeleteVesselClick = onDeleteVesselClick;
 window.onExportCSVClick = onExportCSVClick;
+window.onOpenImportClick = onOpenImportClick;
+window.onConfirmImportClick = onConfirmImportClick;
 window.onOpenArchiveClick = onOpenArchiveClick;
 window.onSearchArchiveClick = onSearchArchiveClick;
 window.onTriggerArchiveClick = onTriggerArchiveClick;

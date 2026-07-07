@@ -57,6 +57,20 @@ class VesselController {
     }
   }
 
+  async importVessels(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const clientIp = req.ip;
+      const result = await vesselService.createVesselsBulk(req.body.vessels, userId, clientIp);
+      res.status(201).json(success({
+        ...result,
+        message: `Imported ${result.inserted} vessel(s). ${result.failed.length} row(s) failed.`,
+      }));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async updateVessel(req, res, next) {
     try {
       const id = parseInt(req.params.id, 10);

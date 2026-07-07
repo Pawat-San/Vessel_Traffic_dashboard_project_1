@@ -89,6 +89,49 @@ describe('VesselService Unit Tests', () => {
     });
   });
 
+  describe('createVesselsBulk()', () => {
+    it('should insert valid rows (by terminal_code or terminal_id) and report failures', async () => {
+      const rows = [
+        { vessel_name: 'BULK ALPHA', type: 'Container', terminal_code: terminal.code, activity: 'L', status: 'AT SEA' },
+        { vessel_name: 'BULK BRAVO', type: 'Bulk', terminal_id: terminal.id, activity: 'D', status: 'BERTH' },
+        { vessel_name: 'BULK CHARLIE', type: 'Tanker', terminal_code: 'DOES-NOT-EXIST', activity: 'B', status: 'ANCHOR' },
+      ];
+
+      const result = await vesselService.createVesselsBulk(rows, user.id, '10.0.0.9');
+
+      expect(result.inserted).toBe(2);
+      expect(result.failed).toHaveLength(1);
+      expect(result.failed[0].vessel_name).toBe('BULK CHARLIE');
+
+      const inserted = await database.db('vessels').whereIn('vessel_name', ['BULK ALPHA', 'BULK BRAVO']);
+      expect(inserted).toHaveLength(2);
+      expect(inserted.every((v) => v.terminal_id === terminal.id)).toBe(true);
+      expect(inserted.every((v) => v.updated_by === user.id)).toBe(true);
+
+      // No row should have been created for the invalid one
+      const badShip = await database.db('vessels').where('vessel_name', 'BULK CHARLIE').first();
+      expect(badShip).toBeUndefined();
+
+      // One CREATE audit log per inserted row
+      const audits = await database.db('audit_logs').where('action', 'CREATE');
+      expect(audits).toHaveLength(2);
+    });
+
+    it('should insert nothing when every row has an unknown terminal', async () => {
+      const rows = [
+        { vessel_name: 'ORPHAN 1', type: 'Container', terminal_code: 'NOPE', activity: 'L', status: 'AT SEA' },
+      ];
+
+      const result = await vesselService.createVesselsBulk(rows, user.id, '10.0.0.9');
+
+      expect(result.inserted).toBe(0);
+      expect(result.failed).toHaveLength(1);
+
+      const count = await database.db('vessels').count({ c: '*' }).first();
+      expect(Number(count.c)).toBe(0);
+    });
+  });
+
   describe('archiveExpiredVessels()', () => {
     it('should move departed vessels with ATD > 24 hours to archive and delete original', async () => {
       // 1. Create a vessel departed 26 hours ago
