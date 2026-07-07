@@ -4,7 +4,7 @@ const authenticate = require('../../middleware/authenticate');
 const authorize = require('../../middleware/authorize');
 const requirePasswordChange = require('../../middleware/requirePasswordChange');
 const validate = require('../../middleware/validate');
-const { createVesselSchema, updateVesselSchema, queryVesselSchema } = require('./vessel.schema');
+const { createVesselSchema, updateVesselSchema, queryVesselSchema, bulkImportSchema } = require('./vessel.schema');
 
 const router = express.Router();
 
@@ -20,6 +20,9 @@ router.get('/:id', vesselController.getVesselById);
 // Mutation endpoints
 // Add/Edit Vessel -> Admin or Operator
 router.post('/', authorize(['admin', 'operator']), validate.body(createVesselSchema), vesselController.createVessel);
+
+// Bulk CSV import -> Admin or Operator
+router.post('/import', authorize(['admin', 'operator']), validate.body(bulkImportSchema), vesselController.importVessels);
 router.put('/:id', authorize(['admin', 'operator']), validate.body(updateVesselSchema), vesselController.updateVessel);
 
 // Delete Vessel -> Admin only

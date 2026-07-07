@@ -98,6 +98,80 @@ class VesselService {
   }
 
   /**
+   * Bulk-create vessels from a parsed CSV import.
+   *
+   * Rows may reference a terminal by `terminal_id` OR by `terminal_code`
+   * (that is what the CSV export writes). Codes are resolved once up-front to
+   * avoid an N+1 lookup. Valid rows are inserted; individually invalid rows
+   * (unknown/inactive terminal) are collected and reported so a single bad row
+   * never blocks the whole batch. The insert + audit logs run in one
+   * transaction, so an unexpected DB error rolls the batch back atomically.
+   *
+   * @returns {{ inserted: number, failed: Array<{ row: number, vessel_name: string, reason: string }> }}
+   */
+  async createVesselsBulk(rows, userId, clientIp) {
+    // Build a code -> id map for active terminals (case-insensitive on code).
+    const terminals = await terminalRepository.findActive();
+    const codeToId = new Map();
+    for (const t of terminals) {
+      codeToId.set(String(t.code).toUpperCase(), t.id);
+    }
+    const activeIds = new Set(terminals.map((t) => t.id));
+
+    const failed = [];
+    const resolved = [];
+
+    rows.forEach((row, index) => {
+      const { terminal_code, ...rest } = row;
+      let terminalId = rest.terminal_id;
+
+      if (terminalId == null && terminal_code) {
+        terminalId = codeToId.get(String(terminal_code).toUpperCase());
+      }
+
+      if (terminalId == null || !activeIds.has(terminalId)) {
+        failed.push({
+          row: index + 1,
+          vessel_name: row.vessel_name,
+          reason: `Unknown or inactive terminal: ${terminal_code || rest.terminal_id}`,
+        });
+        return;
+      }
+
+      resolved.push({ ...rest, terminal_id: terminalId });
+    });
+
+    let inserted = 0;
+    if (resolved.length > 0) {
+      await database.db.transaction(async (trx) => {
+        for (const data of resolved) {
+          const createdVessel = await vesselRepository.create({
+            ...data,
+            updated_by: userId,
+          }, trx);
+
+          await vesselRepository.createAuditLog({
+            action: 'CREATE',
+            entity_type: 'vessel',
+            entity_id: createdVessel.id,
+            changes: { ...data, source: 'csv_import' },
+            user_id: userId,
+            ip_address: clientIp,
+          }, trx);
+
+          inserted += 1;
+        }
+      });
+
+      this.clearVesselsCache();
+    }
+
+    logger.info(`Bulk import by user ${userId}: ${inserted} inserted, ${failed.length} failed`);
+
+    return { inserted, failed };
+  }
+
+  /**
    * Update an existing vessel
    */
   async updateVessel(id, data, userId, clientIp) {

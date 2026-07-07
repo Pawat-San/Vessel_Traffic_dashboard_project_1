@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -89,6 +89,9 @@
         <button class="btn btn-secondary" id="export-csv-btn">
           📥 Export CSV
         </button>
+        <button class="btn btn-secondary" id="import-csv-btn" style="display: none;">
+          📤 Import CSV
+        </button>
         <button class="btn btn-primary" id="add-vessel-btn" style="display: none;">
           ➕ Add Vessel
         </button>
@@ -110,6 +113,8 @@
             <th data-sort="etd">ETD</th>
             <th data-sort="atd">ATD</th>
             <th data-sort="status">Status</th>
+            <th>Next Port</th>
+            <th>Notes</th>
             <th id="action-header-cell" style="display: none;">Actions</th>
           </tr>
         </thead>
@@ -219,22 +224,22 @@
             
             <div class="form-group">
               <label class="form-label" for="form-eta">ETA (Est Time of Arrival)</label>
-              <input class="form-control" type="datetime-local" id="form-eta">
+              <input class="form-control" type="datetime-local" id="form-eta" lang="en-GB" step="60">
             </div>
             
             <div class="form-group">
               <label class="form-label" for="form-etb">ETB (Est Time of Berthing)</label>
-              <input class="form-control" type="datetime-local" id="form-etb">
+              <input class="form-control" type="datetime-local" id="form-etb" lang="en-GB" step="60">
             </div>
             
             <div class="form-group">
               <label class="form-label" for="form-etd">ETD (Est Time of Departure)</label>
-              <input class="form-control" type="datetime-local" id="form-etd">
+              <input class="form-control" type="datetime-local" id="form-etd" lang="en-GB" step="60">
             </div>
             
             <div class="form-group">
               <label class="form-label" for="form-atd">ATD (Actual Time of Departure)</label>
-              <input class="form-control" type="datetime-local" id="form-atd">
+              <input class="form-control" type="datetime-local" id="form-atd" lang="en-GB" step="60">
             </div>
             
             <div class="form-group">
@@ -253,6 +258,57 @@
           <button class="btn btn-primary" type="submit">Save Changes</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Bulk CSV Import Modal Dialog -->
+  <div class="modal-overlay" id="import-modal">
+    <div class="modal-wrapper" style="max-width: 900px;">
+      <div class="modal-header">
+        <h3>Import Vessels from CSV</h3>
+        <button class="modal-close-btn" id="import-modal-close-top">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="import-intro">
+          <p style="color: var(--text-muted); font-size: 0.875rem;">
+            Upload a CSV to add many vessels at once. Columns:
+            <code>vessel_name, voy, type, terminal_code, activity, eta, etb, etd, atd, status, next_port, remark</code>.
+            Dates use 24-hour <code>YYYY-MM-DDTHH:mm</code>.
+          </p>
+          <button class="btn btn-secondary" id="import-template-btn" type="button">⬇️ Download template</button>
+        </div>
+
+        <div class="form-group" style="margin-top: 1rem;">
+          <label class="form-label" for="import-file-input">CSV File</label>
+          <input class="form-control" type="file" id="import-file-input" accept=".csv,text/csv">
+        </div>
+
+        <!-- Validation summary + preview table (shown after a file is picked) -->
+        <div id="import-preview-wrapper" style="display: none; margin-top: 1rem;">
+          <div id="import-summary" class="import-summary"></div>
+          <div class="table-container" style="max-height: 340px; overflow-y: auto; margin-top: 0.75rem;">
+            <table class="fids-table" style="font-size: 0.8rem;">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Status</th>
+                  <th>Vessel Name</th>
+                  <th>Terminal</th>
+                  <th>Type</th>
+                  <th>Activity</th>
+                  <th>Vessel Status</th>
+                  <th>Issue</th>
+                </tr>
+              </thead>
+              <tbody id="import-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="import-modal-close-bottom" type="button">Cancel</button>
+        <button class="btn btn-primary" id="import-confirm-btn" type="button" disabled>Import Valid Rows</button>
+      </div>
     </div>
   </div>
 

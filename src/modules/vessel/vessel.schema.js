@@ -56,6 +56,26 @@ const createVesselSchema = z.object({
 
 const updateVesselSchema = createVesselSchema.partial();
 
+// A single row in a bulk CSV import. Reuses createVesselSchema's rules but
+// makes terminal_id optional and accepts a human-readable terminal_code
+// instead (that is what the CSV Export writes). The service resolves the code
+// to an id. At least one of terminal_id / terminal_code must be supplied.
+const importVesselRowSchema = createVesselSchema
+  .extend({
+    terminal_id: z.number().int().positive().optional(),
+    terminal_code: z.string().trim().min(1).max(20).optional(),
+  })
+  .refine((row) => row.terminal_id != null || (row.terminal_code && row.terminal_code.length > 0), {
+    message: 'Each row requires a terminal_id or a terminal_code',
+    path: ['terminal_code'],
+  });
+
+const bulkImportSchema = z.object({
+  vessels: z.array(importVesselRowSchema)
+    .min(1, 'At least one vessel row is required')
+    .max(500, 'A single import is limited to 500 rows'),
+});
+
 const queryVesselSchema = z.object({
   status: z.enum(['AT SEA','ANCHOR','BERTH','DEPART']).optional(),
   terminal_id: z.string().regex(/^\d+$/).transform(Number).optional(),
@@ -70,4 +90,6 @@ module.exports = {
   createVesselSchema,
   updateVesselSchema,
   queryVesselSchema,
+  importVesselRowSchema,
+  bulkImportSchema,
 };
