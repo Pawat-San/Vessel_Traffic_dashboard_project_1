@@ -42,3 +42,8 @@ services:
         sync: false
       - key: CORS_ORIGIN
         sync: false
+      # Optional: real company branding for the browser tab title + header.
+      # Left unset, the app falls back to the generic default in the code --
+      # set this manually in the Render dashboard, never commit it here.
+      - key: APP_TITLE
+        sync: false

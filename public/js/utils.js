@@ -15,31 +15,17 @@ function esc(value) {
   }[c]));
 }
 
-/**
- * Format ISO datetime string to a beautiful, clean display format
- * Example: 2026-07-01T15:30:00.000Z -> 01 Jul 2026 15:30
- */
-function formatDateTime(isoString) {
-  if (!isoString) return '-';
-  try {
-    const d = new Date(isoString);
-    if (isNaN(d.getTime())) return '-';
-    
-    const day = String(d.getDate()).padStart(2, '0');
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const month = months[d.getMonth()];
-    const year = d.getFullYear();
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    
-    return `${day} ${month} ${year} ${hours}:${minutes}`;
-  } catch (e) {
-    return '-';
-  }
-}
+// Date/time formatting is implemented in the dependency-free formatters.js
+// (loaded before this file) so the pure logic is unit-testable under Jest's
+// node test environment without needing jsdom. Deliberately NOT re-declared
+// as a top-level `const` here -- classic <script> tags share one global
+// lexical scope, and formatters.js already declares a top-level
+// `formatDateTime`; a second top-level declaration of the same name throws
+// a SyntaxError that silently kills this entire file at parse time.
 
 /**
- * Initialize a running clock displaying the current time (Thai Locale format)
+ * Initialize a running clock displaying the current date + time.
+ * Full date (DD-MonthName-YYYY) + 24h HH:mm:ss, e.g. 24-July-2026 14:30:05.
  */
 function startLiveClock(elementId) {
   const clockEl = document.getElementById(elementId);
@@ -47,17 +33,31 @@ function startLiveClock(elementId) {
 
   function updateClock() {
     const now = new Date();
-    // Format to English locale representation
-    const formatter = new Intl.DateTimeFormat('en-GB', {
-      dateStyle: 'medium',
-      timeStyle: 'medium',
-      hour12: false
-    });
-    clockEl.textContent = formatter.format(now);
+    clockEl.textContent = `${window.formatters.formatFullDate(now)} ${window.formatters.formatClockTime(now)}`;
   }
 
   updateClock();
   setInterval(updateClock, 1000);
+}
+
+/**
+ * Fetch the configurable app title (APP_TITLE env var) and apply it to the
+ * browser tab title and the on-page brand heading. Fire-and-forget: on any
+ * failure the static default already in the HTML is left as-is.
+ */
+async function applyBranding() {
+  try {
+    const res = await fetch('/api/config');
+    if (!res.ok) return;
+    const { data } = await res.json();
+    if (!data || !data.appTitle) return;
+
+    document.title = document.title.startsWith('Login') ? `Login - ${data.appTitle}` : data.appTitle;
+    const brand = document.querySelector('.brand-title, .login-title');
+    if (brand) brand.textContent = data.appTitle;
+  } catch (err) {
+    // Keep the static default title/header already present in the HTML.
+  }
 }
 
 /**
@@ -204,10 +204,13 @@ function toggleTheme() {
 // Run initTheme immediately
 initTheme();
 
+// Fire-and-forget: pick up the configurable APP_TITLE branding, if any.
+applyBranding();
+
 // Export functions to global scope
 window.utils = {
   esc,
-  formatDateTime,
+  formatDateTime: window.formatters.formatDateTime,
   startLiveClock,
   exportVesselsToCSV,
   downloadImportTemplate,

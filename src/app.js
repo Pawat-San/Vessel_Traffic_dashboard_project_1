@@ -88,6 +88,16 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 8b. Public frontend config (branding) -- no auth, mirrors /api/health
+app.get('/api/config', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      appTitle: config.appTitle,
+    },
+  });
+});
+
 // 9. Module Routing
 app.use('/api/auth', authRoutes);
 app.use('/api/terminals', terminalRoutes);
