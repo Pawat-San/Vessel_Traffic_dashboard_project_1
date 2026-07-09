@@ -36,7 +36,11 @@ module.exports = {
   isTest: nodeEnv === 'test',
   isProd: nodeEnv === 'production',
   port: parseInt(process.env.PORT || '3000', 10),
-  
+
+  // Generic default kept in the public repo -- the real company branding is
+  // set only via the APP_TITLE env var in the deployment environment.
+  appTitle: process.env.APP_TITLE || 'Vessel Traffic Dashboard',
+
   jwt: {
     secret: process.env.JWT_SECRET || 'fallback-jwt-secret-dev',
     refreshSecret: process.env.JWT_REFRESH_SECRET || 'fallback-jwt-refresh-secret-dev',
