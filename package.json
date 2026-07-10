@@ -1,7 +1,7 @@
 {
   "name": "vessel-dashboard",
   "version": "1.0.0",
-  "description": "Enterprise-Grade Vessel Traffic Dashboard SPA",
+  "description": "Enterprise-Grade Vessel Schedule  Dashboard SPA",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

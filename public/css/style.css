@@ -749,6 +749,22 @@ header {
   color: var(--text-dim);
 }
 
+/* Custom 24h date/hour/minute picker (replaces native datetime-local, whose
+   AM/PM vs 24h rendering follows the browser/OS locale and can't be forced) */
+.datetime-picker-group {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.datetime-picker-group .form-control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.time-select {
+  flex: 0 0 4.5rem;
+}
+
 /* Archive Modal Date Range Form */
 .archive-search-box {
   display: flex;

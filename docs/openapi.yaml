@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Vessel Traffic Dashboard API Documentation
+  title: Vessel Schedule  Dashboard API Documentation
   version: 1.0.0
   description: Enterprise-grade RESTful API for port vessel tracking (Airport FIDS style).
 servers:

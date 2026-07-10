@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vessel Traffic Dashboard</title>
+  <title>Vessel Schedule  Dashboard</title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
   <header>
     <div class="brand-section">
       <div class="brand-logo">🛳️</div>
-      <h1 class="brand-title">Vessel Traffic Dashboard</h1>
+      <h1 class="brand-title">Vessel Schedule  Dashboard</h1>
     </div>
     
     <div class="header-meta">
@@ -223,23 +223,39 @@
             </div>
             
             <div class="form-group">
-              <label class="form-label" for="form-eta">ETA (Est Time of Arrival)</label>
-              <input class="form-control" type="datetime-local" id="form-eta" lang="en-GB" step="60">
+              <label class="form-label" for="form-eta-date">ETA (Est Time of Arrival)</label>
+              <div class="datetime-picker-group">
+                <input class="form-control" type="date" id="form-eta-date">
+                <select class="form-select time-select" id="form-eta-hour" aria-label="ETA hour (24h)"></select>
+                <select class="form-select time-select" id="form-eta-minute" aria-label="ETA minute"></select>
+              </div>
             </div>
-            
+
             <div class="form-group">
-              <label class="form-label" for="form-etb">ETB (Est Time of Berthing)</label>
-              <input class="form-control" type="datetime-local" id="form-etb" lang="en-GB" step="60">
+              <label class="form-label" for="form-etb-date">ETB (Est Time of Berthing)</label>
+              <div class="datetime-picker-group">
+                <input class="form-control" type="date" id="form-etb-date">
+                <select class="form-select time-select" id="form-etb-hour" aria-label="ETB hour (24h)"></select>
+                <select class="form-select time-select" id="form-etb-minute" aria-label="ETB minute"></select>
+              </div>
             </div>
-            
+
             <div class="form-group">
-              <label class="form-label" for="form-etd">ETD (Est Time of Departure)</label>
-              <input class="form-control" type="datetime-local" id="form-etd" lang="en-GB" step="60">
+              <label class="form-label" for="form-etd-date">ETD (Est Time of Departure)</label>
+              <div class="datetime-picker-group">
+                <input class="form-control" type="date" id="form-etd-date">
+                <select class="form-select time-select" id="form-etd-hour" aria-label="ETD hour (24h)"></select>
+                <select class="form-select time-select" id="form-etd-minute" aria-label="ETD minute"></select>
+              </div>
             </div>
-            
+
             <div class="form-group">
-              <label class="form-label" for="form-atd">ATD (Actual Time of Departure)</label>
-              <input class="form-control" type="datetime-local" id="form-atd" lang="en-GB" step="60">
+              <label class="form-label" for="form-atd-date">ATD (Actual Time of Departure)</label>
+              <div class="datetime-picker-group">
+                <input class="form-control" type="date" id="form-atd-date">
+                <select class="form-select time-select" id="form-atd-hour" aria-label="ATD hour (24h)"></select>
+                <select class="form-select time-select" id="form-atd-minute" aria-label="ATD minute"></select>
+              </div>
             </div>
             
             <div class="form-group">
