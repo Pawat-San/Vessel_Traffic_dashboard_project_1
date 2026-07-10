@@ -8,13 +8,15 @@
  */
 
 /**
- * Format an ISO datetime string for table/list display.
- * Example: 2026-07-24T14:30:00.000Z -> 24-Jul-2026 14:30 (local time, 24h)
+ * Split an ISO datetime string into separate date/time strings for
+ * two-line table display. Example: 2026-07-24T14:30:00.000Z ->
+ * { date: '24-Jul-2026', time: '14:30' } (local time, 24h).
+ * Empty/invalid input returns { date: '-', time: '' }.
  */
-function formatDateTime(isoString) {
-  if (!isoString) return '-';
+function formatDateTimeLines(isoString) {
+  if (!isoString) return { date: '-', time: '' };
   const d = new Date(isoString);
-  if (isNaN(d.getTime())) return '-';
+  if (isNaN(d.getTime())) return { date: '-', time: '' };
 
   const day = String(d.getDate()).padStart(2, '0');
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -23,7 +25,16 @@ function formatDateTime(isoString) {
   const hours = String(d.getHours()).padStart(2, '0');
   const minutes = String(d.getMinutes()).padStart(2, '0');
 
-  return `${day}-${month}-${year} ${hours}:${minutes}`;
+  return { date: `${day}-${month}-${year}`, time: `${hours}:${minutes}` };
+}
+
+/**
+ * Format an ISO datetime string for single-line table/list display.
+ * Example: 2026-07-24T14:30:00.000Z -> 24-Jul-2026 14:30 (local time, 24h)
+ */
+function formatDateTime(isoString) {
+  const { date, time } = formatDateTimeLines(isoString);
+  return time ? `${date} ${time}` : date;
 }
 
 /**
@@ -93,7 +104,7 @@ function partsFromISO(isoString) {
   return { dateValue: `${year}-${month}-${day}`, hour, minute };
 }
 
-const formatters = { formatDateTime, formatFullDate, formatClockTime, toISOFromParts, partsFromISO };
+const formatters = { formatDateTime, formatDateTimeLines, formatFullDate, formatClockTime, toISOFromParts, partsFromISO };
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = formatters;

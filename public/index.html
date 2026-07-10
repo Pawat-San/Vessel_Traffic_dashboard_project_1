@@ -167,111 +167,132 @@
       </div>
       <form id="vessel-form">
         <div class="modal-body">
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label" for="form-vessel-name">Vessel Name *</label>
-              <input class="form-control" type="text" id="form-vessel-name" required placeholder="e.g. EVER GIVEN">
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="form-voy">VOY Code</label>
-              <input class="form-control" type="text" id="form-voy" placeholder="e.g. 0422-003">
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="form-type">Vessel Type *</label>
-              <select class="form-select" id="form-type" required>
-                <option value="Container">Container</option>
-                <option value="Bulk">Bulk</option>
-                <option value="Tanker">Tanker</option>
-                <option value="General">General</option>
-                <option value="RoRo">RoRo</option>
-                <option value="LPG">LPG</option>
-                <option value="Passenger">Passenger</option>
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="form-terminal-id">Terminal Berthing *</label>
-              <select class="form-select" id="form-terminal-id" required>
-                <option value="">Select Terminal</option>
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="form-activity">Activity Code *</label>
-              <select class="form-select" id="form-activity" required>
-                <option value="L">L (Loading)</option>
-                <option value="D">D (Discharging)</option>
-                <option value="B">B (Bunkering)</option>
-                <option value="DD">DD (Dry Docking)</option>
-                <option value="L,D">L,D (Loading & Discharging)</option>
-                <option value="L,B">L,B (Loading & Bunkering)</option>
-                <option value="D,B">D,B (Discharging & Bunkering)</option>
-                <option value="L,D,B">L,D,B (Load, Discharge & Bunker)</option>
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="form-status">Traffic Status *</label>
-              <select class="form-select" id="form-status" required>
-                <option value="AT SEA">AT SEA</option>
-                <option value="ANCHOR">ANCHOR</option>
-                <option value="BERTH">BERTH</option>
-                <option value="DEPART">DEPARTED</option>
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="form-eta-date">ETA (Est Time of Arrival)</label>
-              <div class="datetime-picker-group">
-                <input class="form-control" type="date" id="form-eta-date">
-                <select class="form-select time-select" id="form-eta-hour" aria-label="ETA hour (24h)"></select>
-                <select class="form-select time-select" id="form-eta-minute" aria-label="ETA minute"></select>
+          <fieldset class="form-section">
+            <legend class="form-section-title">Vessel Identity</legend>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="form-vessel-name">Vessel Name *</label>
+                <input class="form-control" type="text" id="form-vessel-name" required placeholder="e.g. EVER GIVEN">
               </div>
-            </div>
 
-            <div class="form-group">
-              <label class="form-label" for="form-etb-date">ETB (Est Time of Berthing)</label>
-              <div class="datetime-picker-group">
-                <input class="form-control" type="date" id="form-etb-date">
-                <select class="form-select time-select" id="form-etb-hour" aria-label="ETB hour (24h)"></select>
-                <select class="form-select time-select" id="form-etb-minute" aria-label="ETB minute"></select>
+              <div class="form-group">
+                <label class="form-label" for="form-voy">VOY Code</label>
+                <input class="form-control" type="text" id="form-voy" placeholder="e.g. 0422-003">
               </div>
-            </div>
 
-            <div class="form-group">
-              <label class="form-label" for="form-etd-date">ETD (Est Time of Departure)</label>
-              <div class="datetime-picker-group">
-                <input class="form-control" type="date" id="form-etd-date">
-                <select class="form-select time-select" id="form-etd-hour" aria-label="ETD hour (24h)"></select>
-                <select class="form-select time-select" id="form-etd-minute" aria-label="ETD minute"></select>
+              <div class="form-group">
+                <label class="form-label" for="form-type">Vessel Type *</label>
+                <select class="form-select" id="form-type" required>
+                  <option value="Container">Container</option>
+                  <option value="Bulk">Bulk</option>
+                  <option value="Tanker">Tanker</option>
+                  <option value="General">General</option>
+                  <option value="RoRo">RoRo</option>
+                  <option value="LPG">LPG</option>
+                  <option value="Passenger">Passenger</option>
+                </select>
               </div>
             </div>
+          </fieldset>
 
-            <div class="form-group">
-              <label class="form-label" for="form-atd-date">ATD (Actual Time of Departure)</label>
-              <div class="datetime-picker-group">
-                <input class="form-control" type="date" id="form-atd-date">
-                <select class="form-select time-select" id="form-atd-hour" aria-label="ATD hour (24h)"></select>
-                <select class="form-select time-select" id="form-atd-minute" aria-label="ATD minute"></select>
+          <fieldset class="form-section">
+            <legend class="form-section-title">Berthing &amp; Status</legend>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="form-terminal-id">Terminal Berthing *</label>
+                <select class="form-select" id="form-terminal-id" required>
+                  <option value="">Select Terminal</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="form-activity">Activity Code *</label>
+                <select class="form-select" id="form-activity" required>
+                  <option value="L">L (Loading)</option>
+                  <option value="D">D (Discharging)</option>
+                  <option value="B">B (Bunkering)</option>
+                  <option value="DD">DD (Dry Docking)</option>
+                  <option value="L,D">L,D (Loading & Discharging)</option>
+                  <option value="L,B">L,B (Loading & Bunkering)</option>
+                  <option value="D,B">D,B (Discharging & Bunkering)</option>
+                  <option value="L,D,B">L,D,B (Load, Discharge & Bunker)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="form-status">Traffic Status *</label>
+                <select class="form-select" id="form-status" required>
+                  <option value="AT SEA">AT SEA</option>
+                  <option value="ANCHOR">ANCHOR</option>
+                  <option value="BERTH">BERTH</option>
+                  <option value="DEPART">DEPARTED</option>
+                </select>
               </div>
             </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="form-next-port">Next Port of Call</label>
-              <input class="form-control" type="text" id="form-next-port" placeholder="e.g. SINGAPORE">
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend class="form-section-title">Schedule</legend>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="form-eta-date">ETA (Est Time of Arrival)</label>
+                <div class="datetime-picker-group">
+                  <input class="form-control" type="date" id="form-eta-date">
+                  <select class="form-select time-select" id="form-eta-hour" aria-label="ETA hour (24h)"></select>
+                  <select class="form-select time-select" id="form-eta-minute" aria-label="ETA minute"></select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="form-etb-date">ETB (Est Time of Berthing)</label>
+                <div class="datetime-picker-group">
+                  <input class="form-control" type="date" id="form-etb-date">
+                  <select class="form-select time-select" id="form-etb-hour" aria-label="ETB hour (24h)"></select>
+                  <select class="form-select time-select" id="form-etb-minute" aria-label="ETB minute"></select>
+                </div>
+                <small class="field-error" id="form-etb-error"></small>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="form-etd-date">ETD (Est Time of Departure)</label>
+                <div class="datetime-picker-group">
+                  <input class="form-control" type="date" id="form-etd-date">
+                  <select class="form-select time-select" id="form-etd-hour" aria-label="ETD hour (24h)"></select>
+                  <select class="form-select time-select" id="form-etd-minute" aria-label="ETD minute"></select>
+                </div>
+                <small class="field-error" id="form-etd-error"></small>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="form-atd-date">ATD (Actual Time of Departure)</label>
+                <div class="datetime-picker-group">
+                  <input class="form-control" type="date" id="form-atd-date">
+                  <select class="form-select time-select" id="form-atd-hour" aria-label="ATD hour (24h)"></select>
+                  <select class="form-select time-select" id="form-atd-minute" aria-label="ATD minute"></select>
+                </div>
+                <small class="field-error" id="form-atd-error"></small>
+              </div>
             </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="form-remark">Remark / Notes</label>
-              <input class="form-control" type="text" id="form-remark" placeholder="Extra traffic conditions">
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend class="form-section-title">Extras</legend>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="form-next-port">Next Port of Call</label>
+                <input class="form-control" type="text" id="form-next-port" placeholder="e.g. SINGAPORE">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="form-remark">Remark / Notes</label>
+                <input class="form-control" type="text" id="form-remark" placeholder="Extra traffic conditions">
+              </div>
             </div>
-          </div>
+          </fieldset>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" type="button" id="vessel-modal-close-bottom">Cancel</button>
-          <button class="btn btn-primary" type="submit">Save Changes</button>
+          <button class="btn btn-primary" type="submit" id="vessel-form-save-btn">Save Changes</button>
         </div>
       </form>
     </div>
