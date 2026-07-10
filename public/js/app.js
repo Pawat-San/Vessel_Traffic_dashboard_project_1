@@ -127,14 +127,23 @@ function applyRoleVisibility() {
   const isViewer = user.role === 'viewer';
 
   // "Add Vessel" + "Import CSV" buttons: admin/operator only.
-  // Export CSV and View Archive stay visible to everyone, including viewers.
+  // Export CSV + View Archive: viewer is view-only (F4) -- hidden for viewers.
+  // Note: this is a UI convenience, not a data boundary -- viewers still see
+  // every vessel field via GET /vessels (required for the dashboard itself),
+  // and GET /archive is intentionally left unrestricted at the API level.
   const importCsvBtn = document.getElementById('import-csv-btn');
+  const exportCsvBtn = document.getElementById('export-csv-btn');
+  const viewArchiveBtn = document.getElementById('view-archive-btn');
   if (isViewer) {
     if (elements.addVesselBtn) elements.addVesselBtn.style.display = 'none';
     if (importCsvBtn) importCsvBtn.style.display = 'none';
+    if (exportCsvBtn) exportCsvBtn.style.display = 'none';
+    if (viewArchiveBtn) viewArchiveBtn.style.display = 'none';
   } else {
     if (elements.addVesselBtn) elements.addVesselBtn.style.display = 'inline-flex';
     if (importCsvBtn) importCsvBtn.style.display = 'inline-flex';
+    if (exportCsvBtn) exportCsvBtn.style.display = 'inline-flex';
+    if (viewArchiveBtn) viewArchiveBtn.style.display = 'inline-flex';
   }
 
   // Admin panel maintenance actions (archive trigger, purge)
