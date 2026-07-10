@@ -52,7 +52,48 @@ function formatClockTime(date) {
   return `${hours}:${minutes}:${seconds}`;
 }
 
-const formatters = { formatDateTime, formatFullDate, formatClockTime };
+/**
+ * Combine separate date-picker + hour-select + minute-select values into an
+ * ISO datetime string, treating the parts as local time (mirrors the
+ * semantics of `new Date('YYYY-MM-DDTHH:mm').toISOString()` used previously
+ * with a single <input type="datetime-local">).
+ *
+ * @param {number} year
+ * @param {number} month 1-12 (matches <input type="date"> convention, unlike
+ *   the native Date constructor which wants 0-11)
+ * @param {number} day
+ * @param {number} hour 0-23
+ * @param {number} minute 0-59
+ */
+function toISOFromParts(year, month, day, hour, minute) {
+  const d = new Date(year, month - 1, day, hour, minute, 0, 0);
+  return d.toISOString();
+}
+
+/**
+ * Split an ISO datetime string into local-time date/hour/minute parts for
+ * populating a date input + hour/minute selects. Returns null for empty or
+ * invalid input.
+ *
+ * Deliberately goes through a real Date object (local getters) rather than
+ * slicing the raw ISO string -- slicing would show the UTC clock time as-is,
+ * which is wrong for any user not in UTC+0.
+ */
+function partsFromISO(isoString) {
+  if (!isoString) return null;
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return null;
+
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hour = String(d.getHours()).padStart(2, '0');
+  const minute = String(d.getMinutes()).padStart(2, '0');
+
+  return { dateValue: `${year}-${month}-${day}`, hour, minute };
+}
+
+const formatters = { formatDateTime, formatFullDate, formatClockTime, toISOFromParts, partsFromISO };
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = formatters;

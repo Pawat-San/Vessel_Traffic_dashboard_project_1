@@ -15,7 +15,7 @@ describe('App config — appTitle', () => {
     jest.resetModules();
 
     const config = require('../../src/config');
-    expect(config.appTitle).toBe('Vessel Traffic Dashboard');
+    expect(config.appTitle).toBe('Vessel Schedule  Dashboard');
   });
 
   it('uses APP_TITLE when set, keeping no company name hardcoded in the repo', () => {

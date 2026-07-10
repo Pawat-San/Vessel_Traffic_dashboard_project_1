@@ -71,6 +71,9 @@ async function initDashboard() {
   // 1. Setup Locale Clock
   window.utils.startLiveClock('live-clock');
 
+  // 1b. Populate the 24h hour/minute dropdowns for the vessel schedule fields
+  populateDateTimeSelects();
+
   // 2. Enforce Role Visibility Restrictions
   applyRoleVisibility();
 
@@ -734,6 +737,56 @@ function setupEventListeners() {
   }
 }
 
+const DATETIME_GROUP_PREFIXES = ['form-eta', 'form-etb', 'form-etd', 'form-atd'];
+
+/**
+ * Fill every ETA/ETB/ETD/ATD hour/minute <select> with 00-23 / 00-59 options.
+ * Rendered by us (not the browser's native picker chrome), so it's always
+ * 24-hour regardless of the user's OS/browser locale. Called once at startup.
+ */
+function populateDateTimeSelects() {
+  DATETIME_GROUP_PREFIXES.forEach((prefix) => {
+    const hourSelect = document.getElementById(`${prefix}-hour`);
+    const minuteSelect = document.getElementById(`${prefix}-minute`);
+    if (!hourSelect || !minuteSelect) return;
+
+    for (let h = 0; h < 24; h++) {
+      const opt = document.createElement('option');
+      opt.value = opt.textContent = String(h).padStart(2, '0');
+      hourSelect.appendChild(opt);
+    }
+    for (let m = 0; m < 60; m++) {
+      const opt = document.createElement('option');
+      opt.value = opt.textContent = String(m).padStart(2, '0');
+      minuteSelect.appendChild(opt);
+    }
+  });
+}
+
+/**
+ * Read a date + hour + minute group as an ISO string, or null if the date is empty.
+ */
+function readDateTimeGroup(prefix) {
+  const dateVal = document.getElementById(`${prefix}-date`).value;
+  if (!dateVal) return null;
+
+  const [year, month, day] = dateVal.split('-').map(Number);
+  const hour = Number(document.getElementById(`${prefix}-hour`).value);
+  const minute = Number(document.getElementById(`${prefix}-minute`).value);
+
+  return window.formatters.toISOFromParts(year, month, day, hour, minute);
+}
+
+/**
+ * Populate a date + hour + minute group from an ISO string (or clear it if null/empty).
+ */
+function writeDateTimeGroup(prefix, isoStringOrNull) {
+  const parts = window.formatters.partsFromISO(isoStringOrNull);
+  document.getElementById(`${prefix}-date`).value = parts ? parts.dateValue : '';
+  document.getElementById(`${prefix}-hour`).value = parts ? parts.hour : '00';
+  document.getElementById(`${prefix}-minute`).value = parts ? parts.minute : '00';
+}
+
 /**
  * Handle Add Vessel Button Click
  */
@@ -765,16 +818,10 @@ async function onEditVesselClick(id) {
     document.getElementById('form-terminal-id').value = vessel.terminal_id;
     document.getElementById('form-activity').value = vessel.activity;
     
-    // Format dates to datetime-local values (YYYY-MM-DDTHH:mm)
-    const formatDateForInput = (isoStr) => {
-      if (!isoStr) return '';
-      return isoStr.substring(0, 16); // Extract YYYY-MM-DDTHH:mm
-    };
-
-    document.getElementById('form-eta').value = formatDateForInput(vessel.eta);
-    document.getElementById('form-etb').value = formatDateForInput(vessel.etb);
-    document.getElementById('form-etd').value = formatDateForInput(vessel.etd);
-    document.getElementById('form-atd').value = formatDateForInput(vessel.atd);
+    writeDateTimeGroup('form-eta', vessel.eta);
+    writeDateTimeGroup('form-etb', vessel.etb);
+    writeDateTimeGroup('form-etd', vessel.etd);
+    writeDateTimeGroup('form-atd', vessel.atd);
     
     document.getElementById('form-status').value = vessel.status;
     document.getElementById('form-next-port').value = vessel.next_port || '';
@@ -798,10 +845,10 @@ async function onVesselFormSubmit(event) {
     type: document.getElementById('form-type').value,
     terminal_id: parseInt(document.getElementById('form-terminal-id').value, 10),
     activity: document.getElementById('form-activity').value,
-    eta: document.getElementById('form-eta').value ? new Date(document.getElementById('form-eta').value).toISOString() : null,
-    etb: document.getElementById('form-etb').value ? new Date(document.getElementById('form-etb').value).toISOString() : null,
-    etd: document.getElementById('form-etd').value ? new Date(document.getElementById('form-etd').value).toISOString() : null,
-    atd: document.getElementById('form-atd').value ? new Date(document.getElementById('form-atd').value).toISOString() : null,
+    eta: readDateTimeGroup('form-eta'),
+    etb: readDateTimeGroup('form-etb'),
+    etd: readDateTimeGroup('form-etd'),
+    atd: readDateTimeGroup('form-atd'),
     status: document.getElementById('form-status').value,
     next_port: document.getElementById('form-next-port').value || null,
     remark: document.getElementById('form-remark').value || null,
