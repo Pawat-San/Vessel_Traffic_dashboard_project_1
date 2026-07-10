@@ -1,6 +1,18 @@
-const { formatDateTime, formatFullDate, formatClockTime, toISOFromParts, partsFromISO } = require('../../public/js/formatters');
+const { formatDateTime, formatDateTimeLines, formatFullDate, formatClockTime, toISOFromParts, partsFromISO } = require('../../public/js/formatters');
 
 describe('formatters', () => {
+  describe('formatDateTimeLines()', () => {
+    it('returns a dash date and empty time for null/invalid input', () => {
+      expect(formatDateTimeLines(null)).toEqual({ date: '-', time: '' });
+      expect(formatDateTimeLines('not-a-date')).toEqual({ date: '-', time: '' });
+    });
+
+    it('splits a valid instant into separate date and time strings', () => {
+      const d = new Date(2026, 6, 24, 14, 30);
+      expect(formatDateTimeLines(d)).toEqual({ date: '24-Jul-2026', time: '14:30' });
+    });
+  });
+
   describe('formatDateTime()', () => {
     it('returns "-" for null/empty input', () => {
       expect(formatDateTime(null)).toBe('-');

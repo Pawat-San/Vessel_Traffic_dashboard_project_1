@@ -211,6 +211,7 @@ applyBranding();
 window.utils = {
   esc,
   formatDateTime: window.formatters.formatDateTime,
+  formatDateTimeLines: window.formatters.formatDateTimeLines,
   startLiveClock,
   exportVesselsToCSV,
   downloadImportTemplate,

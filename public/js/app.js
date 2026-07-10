@@ -63,6 +63,9 @@ const elements = {
 let editingVesselId = null;
 // Active editing account ID (null = create mode)
 let editingAccountId = null;
+// Tracks unsaved changes in the vessel form, so closing the modal can prompt
+// for confirmation instead of silently discarding in-progress edits.
+let vesselFormDirty = false;
 
 /**
  * Initialize Dashboard
@@ -473,6 +476,16 @@ async function fetchVessels() {
 }
 
 /**
+ * Render an ETA/ETB/ETD/ATD table cell as two lines (date, then time)
+ * instead of one long string -- keeps the schedule columns narrow.
+ */
+function renderScheduleCell(isoString) {
+  const { date, time } = window.utils.formatDateTimeLines(isoString);
+  if (!time) return date;
+  return `<span class="schedule-date">${date}</span><span class="schedule-time">${time}</span>`;
+}
+
+/**
  * Renders list onto UI table
  */
 function renderVesselsTable() {
@@ -524,10 +537,10 @@ function renderVesselsTable() {
         <td class="fids-cell" data-label="Type">${esc(v.type)}</td>
         <td class="fids-cell" data-label="Terminal"><span class="terminal-badge">${esc(v.terminal_code)}</span></td>
         <td class="fids-cell" data-label="Activity"><span class="activity-badge">${esc(v.activity)}</span></td>
-        <td class="fids-cell time-cell" data-label="ETA">${window.utils.formatDateTime(v.eta)}</td>
-        <td class="fids-cell time-cell" data-label="ETB">${window.utils.formatDateTime(v.etb)}</td>
-        <td class="fids-cell time-cell" data-label="ETD">${window.utils.formatDateTime(v.etd)}</td>
-        <td class="fids-cell time-cell" data-label="ATD">${window.utils.formatDateTime(v.atd)}</td>
+        <td class="fids-cell time-cell" data-label="ETA">${renderScheduleCell(v.eta)}</td>
+        <td class="fids-cell time-cell" data-label="ETB">${renderScheduleCell(v.etb)}</td>
+        <td class="fids-cell time-cell" data-label="ETD">${renderScheduleCell(v.etd)}</td>
+        <td class="fids-cell time-cell" data-label="ATD">${renderScheduleCell(v.atd)}</td>
         <td class="fids-cell" data-label="Status">
           <span class="status-badge ${v.status.toLowerCase().replace(' ', '-')} ${animationClass}">
             ${esc(v.status)}
@@ -664,10 +677,12 @@ function setupEventListeners() {
   if (archiveSearchBtn) archiveSearchBtn.addEventListener('click', onSearchArchiveClick);
 
   // Modal Close Buttons
+  // Vessel modal close/cancel go through the unsaved-changes guard (F7)
+  // instead of closing directly.
   const closeVesselTop = document.getElementById('vessel-modal-close-top');
-  if (closeVesselTop) closeVesselTop.addEventListener('click', () => window.components.closeModal('vessel-modal'));
+  if (closeVesselTop) closeVesselTop.addEventListener('click', closeVesselModalWithGuard);
   const closeVesselBottom = document.getElementById('vessel-modal-close-bottom');
-  if (closeVesselBottom) closeVesselBottom.addEventListener('click', () => window.components.closeModal('vessel-modal'));
+  if (closeVesselBottom) closeVesselBottom.addEventListener('click', closeVesselModalWithGuard);
 
   const closeArchiveTop = document.getElementById('archive-modal-close-top');
   if (closeArchiveTop) closeArchiveTop.addEventListener('click', () => window.components.closeModal('archive-modal'));
@@ -676,6 +691,11 @@ function setupEventListeners() {
 
   if (elements.vesselForm) {
     elements.vesselForm.addEventListener('submit', onVesselFormSubmit);
+    // Unsaved-changes guard (F7): mark dirty on any real user edit. Listening
+    // to both events covers text inputs (input) and <select>/<input type=date>
+    // (change) consistently across browsers.
+    elements.vesselForm.addEventListener('input', () => { vesselFormDirty = true; });
+    elements.vesselForm.addEventListener('change', () => { vesselFormDirty = true; });
   }
 
   // Account Management
@@ -796,6 +816,62 @@ function writeDateTimeGroup(prefix, isoStringOrNull) {
   document.getElementById(`${prefix}-minute`).value = parts ? parts.minute : '00';
 }
 
+const SCHEDULE_ERROR_IDS = ['form-etb-error', 'form-etd-error', 'form-atd-error'];
+
+/**
+ * Clear all inline schedule (ETB/ETD/ATD) validation messages.
+ */
+function clearScheduleErrors() {
+  SCHEDULE_ERROR_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = '';
+    el.classList.remove('visible');
+  });
+}
+
+/**
+ * Show an inline validation message under one of the schedule fields and
+ * scroll it into view.
+ */
+function showScheduleError(id, message) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = message;
+  el.classList.add('visible');
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+/**
+ * Chronological cross-field check for the vessel schedule (F7): each pair is
+ * only compared when both sides are actually set, so partially-filled
+ * schedules are never blocked.
+ */
+function validateScheduleOrder(eta, etb, etd, atd) {
+  if (eta && etb && new Date(etb) < new Date(eta)) {
+    return { id: 'form-etb-error', message: 'ETB must be on or after ETA.' };
+  }
+  if (etb && etd && new Date(etd) < new Date(etb)) {
+    return { id: 'form-etd-error', message: 'ETD must be on or after ETB.' };
+  }
+  if (etd && atd && new Date(atd) < new Date(etd)) {
+    return { id: 'form-atd-error', message: 'ATD must be on or after ETD.' };
+  }
+  return null;
+}
+
+/**
+ * Close the vessel modal, prompting for confirmation first if the form has
+ * unsaved changes (F7 unsaved-changes guard).
+ */
+function closeVesselModalWithGuard() {
+  if (vesselFormDirty && !confirm('Discard unsaved changes?')) {
+    return;
+  }
+  vesselFormDirty = false;
+  window.components.closeModal('vessel-modal');
+}
+
 /**
  * Handle Add Vessel Button Click
  */
@@ -803,7 +879,9 @@ function onAddVesselClick() {
   editingVesselId = null;
   elements.vesselModalTitle.textContent = 'Add New Vessel';
   elements.vesselForm.reset();
-  
+  clearScheduleErrors();
+  vesselFormDirty = false;
+
   // Set default status to AT SEA
   document.getElementById('form-status').value = 'AT SEA';
   window.components.openModal('vessel-modal');
@@ -836,6 +914,8 @@ async function onEditVesselClick(id) {
     document.getElementById('form-next-port').value = vessel.next_port || '';
     document.getElementById('form-remark').value = vessel.remark || '';
 
+    clearScheduleErrors();
+    vesselFormDirty = false;
     window.components.openModal('vessel-modal');
   } catch (err) {
     window.components.showToast('Failed to load vessel details', 'error');
@@ -847,7 +927,8 @@ async function onEditVesselClick(id) {
  */
 async function onVesselFormSubmit(event) {
   event.preventDefault();
-  
+  clearScheduleErrors();
+
   const payload = {
     vessel_name: document.getElementById('form-vessel-name').value,
     voy: document.getElementById('form-voy').value || null,
@@ -863,6 +944,21 @@ async function onVesselFormSubmit(event) {
     remark: document.getElementById('form-remark').value || null,
   };
 
+  // F7 cross-field validation: block submission on an illogical schedule
+  // before ever touching the network.
+  const scheduleError = validateScheduleOrder(payload.eta, payload.etb, payload.etd, payload.atd);
+  if (scheduleError) {
+    showScheduleError(scheduleError.id, scheduleError.message);
+    return;
+  }
+
+  const saveBtn = document.getElementById('vessel-form-save-btn');
+  const originalBtnText = saveBtn ? saveBtn.textContent : '';
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+  }
+
   try {
     if (editingVesselId) {
       await window.api.put(`/vessels/${editingVesselId}`, payload);
@@ -872,6 +968,7 @@ async function onVesselFormSubmit(event) {
       window.components.showToast('Vessel created successfully', 'success');
     }
 
+    vesselFormDirty = false;
     window.components.closeModal('vessel-modal');
     refreshData();
   } catch (error) {
@@ -882,6 +979,11 @@ async function onVesselFormSubmit(event) {
       msg = error.error.message;
     }
     window.components.showToast(msg, 'error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = originalBtnText;
+    }
   }
 }
 

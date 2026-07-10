@@ -269,12 +269,14 @@ header {
   padding: 2rem;
 }
 
-/* Status Cards Summary Grid */
+/* Status Cards Summary Grid -- fixed 5-across on desktop (Total, At Sea,
+   Anchor, Berth, Departed all in one row) rather than auto-fit, which would
+   wrap to fewer/larger cards depending on viewport width. */
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.25rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
 }
 
 .summary-card {
@@ -283,11 +285,11 @@ header {
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding: 1.25rem;
+  padding: 0.85rem 1rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 100px;
+  min-height: 72px;
   position: relative;
   overflow: hidden;
   transition: transform 0.2s, border-color 0.2s;
@@ -314,15 +316,16 @@ header {
 .summary-card.total::before { background-color: var(--text-muted); }
 
 .summary-title {
-  font-size: 0.8rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .summary-value {
   font-family: var(--font-mono);
-  font-size: 2.25rem;
+  font-size: 1.6rem;
   font-weight: 700;
   line-height: 1.1;
   margin-top: 0.5rem;
@@ -393,7 +396,7 @@ header {
 }
 
 .form-select {
-  padding: 0.5rem 1.75rem 0.5rem 0.75rem;
+  padding: 0.4rem 1.75rem 0.4rem 0.75rem;
   background-color: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -443,12 +446,13 @@ header {
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   letter-spacing: 0.05em;
-  padding: 1rem 1.25rem;
+  padding: 0.7rem 0.85rem;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
 }
 
 .fids-table th:hover {
@@ -480,8 +484,8 @@ header {
 }
 
 .fids-cell {
-  padding: 1rem 1.25rem;
-  font-size: 0.9rem;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.85rem;
   vertical-align: middle;
 }
 
@@ -496,9 +500,22 @@ header {
   color: var(--text-muted);
 }
 
+/* Two-line schedule cells (ETA/ETB/ETD/ATD): date on top, time below --
+   keeps each schedule column narrow instead of one long date+time string. */
 .fids-cell.time-cell {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.schedule-date,
+.schedule-time {
+  display: block;
+  line-height: 1.35;
+}
+
+.schedule-time {
+  color: var(--text-muted);
 }
 
 /* Status Badges */
@@ -668,12 +685,27 @@ header {
   transform: translateY(0);
 }
 
+/* Form-based modals (vessel, account, password) wrap .modal-body and
+   .modal-footer inside a <form>, which sits between .modal-wrapper and
+   those two elements. A plain block-level <form> breaks the flex chain
+   entirely -- .modal-body's own flex/min-height rules below have no effect
+   unless its DIRECT parent is also a flex container, so the form itself
+   needs to be one too, or a tall form silently overflows .modal-wrapper's
+   overflow:hidden with no way to scroll to the rest of it. */
+.modal-wrapper > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+}
+
 .modal-header {
-  padding: 1.25rem 1.5rem;
+  padding: 0.85rem 1.5rem;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .modal-close-btn {
@@ -691,24 +723,70 @@ header {
 }
 
 .modal-body {
-  padding: 1.5rem;
+  padding: 1.15rem 1.5rem;
   overflow-y: auto;
+  /* flex: 1 1 0% (not the default "0 1 auto") + min-height: 0 is the
+     reliable fix for a scrollable flex child that must shrink to fit
+     inside .modal-wrapper's max-height -- without it, tall forms (e.g. the
+     4-section vessel form) render at full content height and get silently
+     clipped by .modal-wrapper's overflow:hidden with no way to scroll to
+     the rest of the form or the Save/Cancel footer. */
+  flex: 1 1 0%;
+  min-height: 0;
 }
 
 .modal-footer {
-  padding: 1.25rem 1.5rem;
+  padding: 0.85rem 1.5rem;
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
+  flex-shrink: 0;
   background-color: rgba(0, 0, 0, 0.15);
 }
 
 /* Forms styling inside Modals */
+
+/* Grouped sections (F7) -- Add/Edit Vessel form is split into labeled
+   fieldsets (Identity / Berthing & Status / Schedule / Extras) instead of
+   one flat grid. Each fieldset still contains its own .form-grid, so the
+   existing 2-column desktop / 1-column mobile behavior is unchanged. */
+.form-section {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 0 0 0.85rem 0;
+  padding: 0.85rem 0 0 0;
+}
+
+.form-section:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.form-section-title {
+  padding: 0;
+  margin-bottom: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.field-error {
+  display: none;
+  color: var(--color-depart);
+  font-size: 0.75rem;
+}
+
+.field-error.visible {
+  display: block;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .form-group {
@@ -729,7 +807,7 @@ header {
 }
 
 .form-control {
-  padding: 0.6rem 0.8rem;
+  padding: 0.45rem 0.7rem;
   background-color: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -763,6 +841,15 @@ header {
 
 .time-select {
   flex: 0 0 4.5rem;
+}
+
+/* The native calendar picker icon renders as a dark glyph by default, which
+   is invisible against this dark theme's near-black input background.
+   Inverted here (dark theme is the base cascade); reset back to normal in
+   the light-theme override block below, where the icon is already visible
+   against the white input background. */
+.datetime-picker-group input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
 }
 
 /* Archive Modal Date Range Form */
@@ -965,6 +1052,12 @@ header {
   color: #94a3b8;
 }
 
+/* Undo the dark-theme calendar-icon inversion -- the default dark glyph is
+   already visible against this theme's white input background. */
+:root[data-theme="light"] .datetime-picker-group input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+
 /* Buttons */
 :root[data-theme="light"] .btn-secondary {
   background-color: #ffffff;
@@ -1042,38 +1135,85 @@ header {
   background-color: rgba(239, 68, 68, 0.06);
 }
 
-/* Responsive folding structure for mobile devices */
+/* Responsive layout: three tiers (mobile-first additions; desktop styles
+   above 1024px are untouched by any of these). */
+
+/* Tablet + phone (F6): every data table (main vessel table, archive, import
+   preview, accounts) scrolls horizontally inside its .table-container, with
+   a sticky header row + sticky first column, instead of collapsing into
+   stacked cards -- one mechanism covers both tiers. Backgrounds use the
+   --bg-secondary variable (solid in both themes) so scrolled content
+   doesn't show through the sticky header/column. */
+@media (max-width: 1024px) {
+  .summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .table-container {
+    overflow-x: auto;
+    max-height: 65vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .fids-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--bg-secondary);
+  }
+
+  .fids-table th:first-child,
+  .fids-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color: var(--bg-secondary);
+  }
+
+  .fids-table th:first-child {
+    z-index: 3; /* header's corner cell sits above both sticky axes */
+  }
+}
+
 @media (max-width: 768px) {
   header {
     flex-direction: column;
     gap: 1rem;
     padding: 1rem;
   }
-  
+
   .header-meta {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
   }
 
-  .summary-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-  
   .control-panel {
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
   }
-  
+
   .filters-group {
+    flex-wrap: nowrap;
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .search-input-wrapper {
     max-width: 100%;
+    min-width: 0;
   }
 
   .form-select {
+    width: 100%;
+  }
+
+  .action-group {
+    flex-direction: column;
+    align-items: stretch;
     width: 100%;
   }
 
@@ -1084,46 +1224,32 @@ header {
   .form-group.full-width {
     grid-column: span 1;
   }
+}
 
-  /* Responsive Table transformation into Cards */
-  .fids-table, .fids-table thead, .fids-table tbody, .fids-table th, .fids-table td, .fids-table tr {
-    display: block;
+/* Phone (F6): touch targets, wrapping datetime pickers, near-full-screen
+   modals -- Save/Cancel stay reachable since .modal-footer is already a
+   fixed flex sibling outside the scrollable .modal-body. */
+@media (max-width: 640px) {
+  .btn,
+  .form-control,
+  .form-select,
+  .time-select {
+    min-height: 44px;
   }
 
-  .fids-table thead {
-    display: none; /* Hide column headers on mobile */
+  .datetime-picker-group {
+    flex-wrap: wrap;
   }
 
-  .fids-row {
-    border-bottom: 2px solid var(--border-color);
-    padding: 1rem 0.5rem;
-    position: relative;
+  .modal-wrapper {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
   }
 
-  .fids-cell {
-    border: none;
-    padding: 0.25rem 0.75rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .fids-cell::before {
-    content: attr(data-label);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
-  .fids-cell.action-cell {
-    margin-top: 0.5rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    padding-top: 0.5rem;
-    justify-content: flex-end;
-  }
-  
-  .fids-cell.action-cell::before {
-    display: none;
+  .login-card {
+    padding: 1.5rem;
   }
 }
