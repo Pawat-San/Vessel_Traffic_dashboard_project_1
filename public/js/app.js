@@ -546,8 +546,8 @@ function renderVesselsTable() {
             ${esc(v.status)}
           </span>
         </td>
-        <td class="fids-cell next-port-cell" data-label="Next Port">${esc(v.next_port) || '-'}</td>
-        <td class="fids-cell notes-cell" data-label="Notes">${esc(v.remark) || '-'}</td>
+        <td class="fids-cell next-port-cell" data-label="Next Port" title="${esc(v.next_port) || ''}">${esc(v.next_port) || '-'}</td>
+        <td class="fids-cell notes-cell" data-label="Notes" title="${esc(v.remark) || ''}">${esc(v.remark) || '-'}</td>
         ${actionCellHtml}
       </tr>
     `;
