@@ -1,4 +1,4 @@
-const { formatDateTime, formatDateTimeLines, formatFullDate, formatClockTime, toISOFromParts, partsFromISO } = require('../../public/js/formatters');
+const { formatDateTime, formatDateTimeLines, formatDateTimeShort, formatFullDate, formatClockTime, toISOFromParts, partsFromISO } = require('../../public/js/formatters');
 
 describe('formatters', () => {
   describe('formatDateTimeLines()', () => {
@@ -39,6 +39,38 @@ describe('formatters', () => {
     it('renders 1pm as 13:00 (24-hour, no AM/PM)', () => {
       const onePm = new Date(2026, 6, 24, 13, 0);
       expect(formatDateTime(onePm)).toBe('24-Jul-2026 13:00');
+    });
+
+    // F14 regression guard: the main table's short (no-year) format must
+    // come from a SEPARATE function (formatDateTimeShort). If a future edit
+    // strips the year from formatDateTime/formatDateTimeLines directly
+    // instead, the archive table and CSV export would silently lose it too.
+    it('still includes the year (archive/CSV depend on this)', () => {
+      const d = new Date(2026, 6, 24, 14, 30);
+      expect(formatDateTime(d)).toContain('2026');
+      expect(formatDateTimeLines(d).date).toContain('2026');
+    });
+  });
+
+  describe('formatDateTimeShort()', () => {
+    it('returns a dash date and empty time for null/invalid input', () => {
+      expect(formatDateTimeShort(null)).toEqual({ date: '-', time: '' });
+      expect(formatDateTimeShort('not-a-date')).toEqual({ date: '-', time: '' });
+    });
+
+    it('drops the year and uppercases the month', () => {
+      const d = new Date(2026, 6, 24, 14, 30);
+      expect(formatDateTimeShort(d)).toEqual({ date: '24 JUL', time: '14:30' });
+    });
+
+    it('zero-pads a single-digit day', () => {
+      const d = new Date(2026, 6, 6, 9, 5);
+      expect(formatDateTimeShort(d)).toEqual({ date: '06 JUL', time: '09:05' });
+    });
+
+    it('never contains a 4-digit year', () => {
+      const d = new Date(2026, 6, 24, 14, 30);
+      expect(formatDateTimeShort(d).date).not.toMatch(/\d{4}/);
     });
   });
 
