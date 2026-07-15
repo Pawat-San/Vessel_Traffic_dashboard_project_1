@@ -35,6 +35,7 @@ const elements = {
   filterStatus: document.getElementById('filter-status'),
   filterTerminal: document.getElementById('filter-terminal'),
   filterSearch: document.getElementById('filter-search'),
+  searchWrapper: document.querySelector('.search-input-wrapper'),
   paginationInfo: document.getElementById('pagination-info'),
   btnPrevPage: document.getElementById('btn-prev-page'),
   btnNextPage: document.getElementById('btn-next-page'),
@@ -147,6 +148,18 @@ function applyRoleVisibility() {
     if (importCsvBtn) importCsvBtn.style.display = 'inline-flex';
     if (exportCsvBtn) exportCsvBtn.style.display = 'inline-flex';
     if (viewArchiveBtn) viewArchiveBtn.style.display = 'inline-flex';
+  }
+
+  // F12: search bar hidden entirely for viewers (table is the priority, not
+  // search) -- also clear any stale filter so a viewer always sees the full
+  // unfiltered table. .filters-group is a flex row, so hiding this child
+  // reflows the remaining dropdowns without leaving a gap.
+  if (elements.searchWrapper) {
+    elements.searchWrapper.style.display = isViewer ? 'none' : '';
+  }
+  if (isViewer) {
+    state.filters.search = '';
+    if (elements.filterSearch) elements.filterSearch.value = '';
   }
 
   // Admin panel maintenance actions (archive trigger, purge)
@@ -480,7 +493,10 @@ async function fetchVessels() {
  * instead of one long string -- keeps the schedule columns narrow.
  */
 function renderScheduleCell(isoString) {
-  const { date, time } = window.utils.formatDateTimeLines(isoString);
+  // F14: main table drops the year (day + month only) -- archive/CSV/the
+  // vessel form all keep the full year via their own separate render paths
+  // (formatDateTime / formatDateTimeLines), untouched by this function.
+  const { date, time } = window.utils.formatDateTimeShort(isoString);
   if (!time) return date;
   return `<span class="schedule-date">${date}</span><span class="schedule-time">${time}</span>`;
 }
@@ -816,10 +832,11 @@ function writeDateTimeGroup(prefix, isoStringOrNull) {
   document.getElementById(`${prefix}-minute`).value = parts ? parts.minute : '00';
 }
 
-const SCHEDULE_ERROR_IDS = ['form-etb-error', 'form-etd-error', 'form-atd-error'];
+// Schedule (ETB/ETD/ATD) fields plus VOY share the same inline-error clear/show pattern.
+const SCHEDULE_ERROR_IDS = ['form-etb-error', 'form-etd-error', 'form-atd-error', 'form-voy-error'];
 
 /**
- * Clear all inline schedule (ETB/ETD/ATD) validation messages.
+ * Clear all inline vessel-form validation messages (schedule + VOY).
  */
 function clearScheduleErrors() {
   SCHEDULE_ERROR_IDS.forEach((id) => {
@@ -929,9 +946,11 @@ async function onVesselFormSubmit(event) {
   event.preventDefault();
   clearScheduleErrors();
 
+  const voy = document.getElementById('form-voy').value.trim().toUpperCase();
+
   const payload = {
     vessel_name: document.getElementById('form-vessel-name').value,
-    voy: document.getElementById('form-voy').value || null,
+    voy: voy || null,
     type: document.getElementById('form-type').value,
     terminal_id: parseInt(document.getElementById('form-terminal-id').value, 10),
     activity: document.getElementById('form-activity').value,
@@ -943,6 +962,13 @@ async function onVesselFormSubmit(event) {
     next_port: document.getElementById('form-next-port').value || null,
     remark: document.getElementById('form-remark').value || null,
   };
+
+  // F13: VOY is optional, but if provided must be exactly 4 alphanumeric
+  // characters (auto-uppercased above).
+  if (voy && !/^[A-Z0-9]{4}$/.test(voy)) {
+    showScheduleError('form-voy-error', 'VOY must be exactly 4 alphanumeric characters.');
+    return;
+  }
 
   // F7 cross-field validation: block submission on an illogical schedule
   // before ever touching the network.

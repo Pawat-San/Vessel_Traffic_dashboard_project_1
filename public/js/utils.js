@@ -212,6 +212,7 @@ window.utils = {
   esc,
   formatDateTime: window.formatters.formatDateTime,
   formatDateTimeLines: window.formatters.formatDateTimeLines,
+  formatDateTimeShort: window.formatters.formatDateTimeShort,
   startLiveClock,
   exportVesselsToCSV,
   downloadImportTemplate,

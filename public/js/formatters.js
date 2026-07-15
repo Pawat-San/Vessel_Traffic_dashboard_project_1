@@ -38,6 +38,28 @@ function formatDateTime(isoString) {
 }
 
 /**
+ * Split an ISO datetime string into date/time strings for the main
+ * dashboard table specifically (F14) -- day + uppercase month, NO year
+ * (e.g. { date: '06 JUL', time: '14:30' }), local time, 24h. Deliberately a
+ * separate function from formatDateTimeLines (which keeps the year and is
+ * used by the archive table) so dropping the year here can never affect
+ * archive/CSV/the vessel form. Empty/invalid input returns { date: '-', time: '' }.
+ */
+function formatDateTimeShort(isoString) {
+  if (!isoString) return { date: '-', time: '' };
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return { date: '-', time: '' };
+
+  const day = String(d.getDate()).padStart(2, '0');
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const month = months[d.getMonth()];
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+
+  return { date: `${day} ${month}`, time: `${hours}:${minutes}` };
+}
+
+/**
  * Format a Date as a full date string for the dashboard header.
  * Example: 2026-07-24 -> 04-July-2026 (day always zero-padded, full English month name)
  */
@@ -104,7 +126,7 @@ function partsFromISO(isoString) {
   return { dateValue: `${year}-${month}-${day}`, hour, minute };
 }
 
-const formatters = { formatDateTime, formatDateTimeLines, formatFullDate, formatClockTime, toISOFromParts, partsFromISO };
+const formatters = { formatDateTime, formatDateTimeLines, formatDateTimeShort, formatFullDate, formatClockTime, toISOFromParts, partsFromISO };
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = formatters;
