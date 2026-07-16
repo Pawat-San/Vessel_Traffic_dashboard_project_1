@@ -528,19 +528,14 @@ header {
   white-space: nowrap;
 }
 
-/* F19: capped width + ellipsis so a long vessel name can't hog horizontal
-   space from the other columns; full name is still available via the
-   title attribute (hover tooltip) set in app.js. Unscoped by breakpoint,
-   same as .next-port-cell/.notes-cell below -- this table has no stacked
-   card mode, tablet/phone already reach every column via horizontal
-   scroll (F6), so there's no narrower "full name" layout to exempt. */
+/* No width cap -- the column sizes to the longest name so it's always
+   fully visible (still guaranteed single-line via .fids-cell's inherited
+   white-space: nowrap above). The title attribute set in app.js is kept as
+   a harmless no-op fallback. */
 .fids-cell.vessel-name-cell {
   font-weight: 600;
   color: #fff;
   letter-spacing: 0.02em;
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .fids-cell.voy-cell {
