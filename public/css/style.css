@@ -32,6 +32,17 @@
 
   --accent-neon: #38bdf8;
   --accent-glow: 0 0 15px rgba(56, 189, 248, 0.55);
+
+  /* F21: fluid type scale -- these grow/shrink continuously with viewport
+     width (via vw) instead of only jumping at breakpoints, so text is
+     appropriately sized on everything from a phone to a 65" TV viewed from
+     across a room. Coefficients are tuned so the desktop range (~1280-1920px,
+     where this dashboard has always been tuned) lands close to the fixed
+     sizes already in place; they grow further beyond that for large-screen/TV
+     viewing distance, and ease down slightly for small phones. */
+  --fs-title: clamp(0.62rem, 0.56rem + 0.2vw, 1rem);
+  --fs-value: clamp(1rem, 0.7rem + 0.45vw, 1.8rem);
+  --fs-body:  clamp(0.78rem, 0.72rem + 0.18vw, 1rem);
 }
 
 /* Light Theme Overrides */
@@ -67,8 +78,7 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-main);
   line-height: 1.5;
-  overflow-x: hidden;
-  background-image: 
+  background-image:
     radial-gradient(at 0% 0%, rgba(15, 23, 42, 0.9) 0, transparent 50%),
     radial-gradient(at 50% 0%, rgba(30, 41, 59, 0.3) 0, transparent 50%),
     radial-gradient(at 100% 0%, rgba(14, 165, 233, 0.1) 0, transparent 50%);
@@ -263,10 +273,17 @@ header {
 }
 
 /* Dashboard Content Grid */
+/* F20-T3: TV-safe edge padding. The 2.5vw gutter keeps content clear of the
+   ~5% overscan band that crops the outer edge of the picture on most TVs
+   (monitors don't overscan, which is why this only bites on a TV), even on
+   TV browsers that ignore env(safe-area-inset-*). */
 .dashboard-container {
   max-width: min(1760px, 96vw);
   margin: 0 auto;
-  padding: 2rem;
+  padding-left:   max(1.5rem, env(safe-area-inset-left, 0px), 2.5vw);
+  padding-right:  max(1.5rem, env(safe-area-inset-right, 0px), 2.5vw);
+  padding-top:    max(1rem, env(safe-area-inset-top, 0px));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
 }
 
 /* Status Cards Summary Grid -- fixed 5-across on desktop (Total, At Sea,
@@ -275,21 +292,25 @@ header {
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
 }
 
+/* F17: single horizontal row ("LABEL: value") instead of a stacked
+   title-over-big-number layout, so the card can be much shorter. */
 .summary-card {
   background: var(--bg-card);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding: 0.6rem 0.75rem;
+  padding: 0.5rem 0.75rem;
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 52px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  min-height: 40px;
   position: relative;
   overflow: hidden;
   transition: transform 0.2s, border-color 0.2s;
@@ -316,36 +337,46 @@ header {
 .summary-card.total::before { background-color: var(--text-muted); }
 
 .summary-title {
-  font-size: 0.68rem;
+  font-size: var(--fs-title);
   font-weight: 700;
   text-transform: uppercase;
   color: var(--text-muted);
   white-space: nowrap;
 }
 
-.summary-value {
-  font-family: var(--font-mono);
-  font-size: 1.4rem;
-  font-weight: 700;
-  line-height: 1.1;
-  margin-top: 0.35rem;
+/* Trailing colon added via CSS so the label+value pairing ("LABEL: value")
+   doesn't require touching the markup. */
+.summary-title::after {
+  content: ':';
 }
 
-.summary-card.at-sea .summary-value { color: var(--color-at-sea); text-shadow: var(--glow-at-sea); }
-.summary-card.anchor .summary-value { color: var(--color-anchor); text-shadow: var(--glow-anchor); }
-.summary-card.berth .summary-value { color: var(--color-berth); text-shadow: var(--glow-berth); }
-.summary-card.depart .summary-value { color: var(--color-depart); text-shadow: var(--glow-depart); }
+.summary-value {
+  font-family: var(--font-mono);
+  font-size: var(--fs-value);
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: 0;
+}
+
+/* No text-shadow glow at this size -- it read as blurry rather than crisp
+   on the smaller inline number, so color alone carries the per-status cue. */
+.summary-card.at-sea .summary-value { color: var(--color-at-sea); }
+.summary-card.anchor .summary-value { color: var(--color-anchor); }
+.summary-card.berth .summary-value { color: var(--color-berth); }
+.summary-card.depart .summary-value { color: var(--color-depart); }
 .summary-card.total .summary-value { color: var(--text-main); }
 
 /* Control & Filter Panel */
+/* F18: tighter top/bottom padding + margin than the original 1.25rem/1.5rem
+   so less vertical space sits between the summary cards and the table. */
 .control-panel {
   background: var(--bg-card);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding: 1.25rem;
-  margin-bottom: 1.5rem;
+  padding: 0.85rem 1.25rem;
+  margin-bottom: 1rem;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -453,7 +484,7 @@ header {
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
-  font-size: 0.7rem;
+  font-size: var(--fs-title);
   letter-spacing: 0.05em;
   padding: 0.7rem 0.85rem;
   border-bottom: 1px solid var(--border-color);
@@ -492,15 +523,24 @@ header {
 
 .fids-cell {
   padding: 0.7rem 0.85rem;
-  font-size: 0.85rem;
+  font-size: var(--fs-body);
   vertical-align: middle;
   white-space: nowrap;
 }
 
+/* F19: capped width + ellipsis so a long vessel name can't hog horizontal
+   space from the other columns; full name is still available via the
+   title attribute (hover tooltip) set in app.js. Unscoped by breakpoint,
+   same as .next-port-cell/.notes-cell below -- this table has no stacked
+   card mode, tablet/phone already reach every column via horizontal
+   scroll (F6), so there's no narrower "full name" layout to exempt. */
 .fids-cell.vessel-name-cell {
   font-weight: 600;
   color: #fff;
   letter-spacing: 0.02em;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fids-cell.voy-cell {
@@ -1309,5 +1349,34 @@ header {
 
   .login-card {
     padding: 1.5rem;
+  }
+}
+
+/* F21: large-screen / TV tier. Nothing above the 1024px breakpoint was ever
+   tuned before this -- a 1080p/4K display just inherited plain desktop CSS.
+   Text already scales up continuously via the --fs-* clamp() variables
+   above; this tier only nudges structural spacing (padding/gaps) a further
+   notch, since a TV is viewed from ~2-4m and needs more breathing room, not
+   just bigger glyphs. Threshold assumes the common ~1920 CSS-px TV browser
+   report (see F20-T0's diagnostic) -- re-tune this value once measured on
+   the actual target display if it differs. */
+@media (min-width: 1600px) {
+  .summary-card {
+    padding: 0.7rem 1rem;
+    min-height: 48px;
+    gap: 0.6rem;
+  }
+
+  .summary-grid {
+    gap: 0.9rem;
+  }
+
+  .control-panel {
+    padding: 1.1rem 1.5rem;
+  }
+
+  .fids-cell,
+  .fids-table th {
+    padding: 0.9rem 1.1rem;
   }
 }

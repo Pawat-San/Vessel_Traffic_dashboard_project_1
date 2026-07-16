@@ -36,6 +36,7 @@ const elements = {
   filterTerminal: document.getElementById('filter-terminal'),
   filterSearch: document.getElementById('filter-search'),
   searchWrapper: document.querySelector('.search-input-wrapper'),
+  filtersGroup: document.querySelector('.filters-group'),
   paginationInfo: document.getElementById('pagination-info'),
   btnPrevPage: document.getElementById('btn-prev-page'),
   btnNextPage: document.getElementById('btn-next-page'),
@@ -160,6 +161,27 @@ function applyRoleVisibility() {
   if (isViewer) {
     state.filters.search = '';
     if (elements.filterSearch) elements.filterSearch.value = '';
+  }
+
+  // F16: viewer accounts get the full unfiltered table with no filter
+  // controls at all -- Status/Terminal dropdowns hidden (not just disabled),
+  // and any stale filter selection is cleared so nothing is silently
+  // restricted for a viewer. Elements stay in the DOM (display:none) rather
+  // than being removed, so the existing change-listeners and .value reads
+  // never hit a null element.
+  if (elements.filterStatus) elements.filterStatus.style.display = isViewer ? 'none' : '';
+  if (elements.filterTerminal) elements.filterTerminal.style.display = isViewer ? 'none' : '';
+  if (isViewer) {
+    state.filters.status = '';
+    state.filters.terminal_id = '';
+    if (elements.filterStatus) elements.filterStatus.value = '';
+    if (elements.filterTerminal) elements.filterTerminal.value = '';
+  }
+  // With search (F12) and both dropdowns hidden, .filters-group has nothing
+  // left to render for a viewer -- collapse the group itself so it doesn't
+  // leave an empty gap in the .control-panel flex row.
+  if (elements.filtersGroup) {
+    elements.filtersGroup.style.display = isViewer ? 'none' : '';
   }
 
   // Admin panel maintenance actions (archive trigger, purge)
@@ -548,7 +570,7 @@ function renderVesselsTable() {
     const esc = window.utils.esc;
     html += `
       <tr class="fids-row" id="vessel-row-${v.id}">
-        <td class="fids-cell vessel-name-cell" data-label="Vessel Name">${esc(v.vessel_name)}</td>
+        <td class="fids-cell vessel-name-cell" data-label="Vessel Name" title="${esc(v.vessel_name)}">${esc(v.vessel_name)}</td>
         <td class="fids-cell voy-cell" data-label="VOY">${esc(v.voy) || '-'}</td>
         <td class="fids-cell" data-label="Type">${esc(v.type)}</td>
         <td class="fids-cell" data-label="Terminal"><span class="terminal-badge">${esc(v.terminal_code)}</span></td>
@@ -1284,7 +1306,7 @@ async function onSearchArchiveClick() {
     archived.forEach((v) => {
       html += `
         <tr class="fids-row">
-          <td class="fids-cell vessel-name-cell">${esc(v.vessel_name)}</td>
+          <td class="fids-cell vessel-name-cell" title="${esc(v.vessel_name)}">${esc(v.vessel_name)}</td>
           <td class="fids-cell voy-cell">${esc(v.voy) || '-'}</td>
           <td class="fids-cell"><span class="terminal-badge">${esc(v.terminal_code)}</span></td>
           <td class="fids-cell time-cell">${window.utils.formatDateTime(v.eta)}</td>
