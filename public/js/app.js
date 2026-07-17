@@ -1097,7 +1097,7 @@ async function onExportCSVClick() {
 // are sent to the server on confirm.
 let importParsedRows = [];
 
-const VALID_TYPES = ['Container', 'Bulk', 'Tanker', 'General', 'RoRo', 'LPG', 'Passenger'];
+const VALID_TYPES = ['AMN', 'BULK', 'CAPE', 'CHMC', 'CNTN', 'CRUISE', 'HVLT', 'LNG', 'LPG', 'MPP', 'PMX', 'RORO', 'TANKER', 'WCC'];
 const VALID_ACTIVITIES = ['L', 'D', 'B', 'DD', 'LD', 'LB', 'DB', 'LDB', 'L,D', 'L,B', 'D,B', 'L,D,B'];
 const VALID_STATUSES = ['AT SEA', 'ANCHOR', 'BERTH', 'DEPART'];
 

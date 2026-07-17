@@ -28,8 +28,8 @@ const createVesselSchema = z.object({
     .refine((val) => val === null || val === undefined || /^[A-Z0-9]{4}$/.test(val), {
       message: 'VOY must be exactly 4 alphanumeric characters',
     }),
-  type: z.enum(['Container','Bulk','Tanker','General','RoRo','LPG','Passenger'], {
-    errorMap: () => ({ message: 'Vessel type must be one of: Container, Bulk, Tanker, General, RoRo, LPG, Passenger' })
+  type: z.enum(['AMN','BULK','CAPE','CHMC','CNTN','CRUISE','HVLT','LNG','LPG','MPP','PMX','RORO','TANKER','WCC'], {
+    errorMap: () => ({ message: 'Vessel type must be one of: AMN, BULK, CAPE, CHMC, CNTN, CRUISE, HVLT, LNG, LPG, MPP, PMX, RORO, TANKER, WCC' })
   }),
   terminal_id: z.number({
     required_error: 'Terminal ID is required'

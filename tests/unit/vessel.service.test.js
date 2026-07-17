@@ -54,7 +54,7 @@ describe('VesselService Unit Tests', () => {
       const payload = {
         vessel_name: 'CONTAINER SHIP ALPHA',
         voy: 'VOY-99',
-        type: 'Container',
+        type: 'CNTN',
         terminal_id: terminal.id,
         activity: 'L',
         eta: '2026-07-01T08:00:00.000Z',
@@ -77,7 +77,7 @@ describe('VesselService Unit Tests', () => {
     it('should reject creation for invalid or inactive terminal IDs', async () => {
       const payload = {
         vessel_name: 'BAD TERMINAL SHIP',
-        type: 'Container',
+        type: 'CNTN',
         terminal_id: 9999, // non-existent
         activity: 'L',
         status: 'AT SEA',
@@ -92,9 +92,9 @@ describe('VesselService Unit Tests', () => {
   describe('createVesselsBulk()', () => {
     it('should insert valid rows (by terminal_code or terminal_id) and report failures', async () => {
       const rows = [
-        { vessel_name: 'BULK ALPHA', type: 'Container', terminal_code: terminal.code, activity: 'L', status: 'AT SEA' },
-        { vessel_name: 'BULK BRAVO', type: 'Bulk', terminal_id: terminal.id, activity: 'D', status: 'BERTH' },
-        { vessel_name: 'BULK CHARLIE', type: 'Tanker', terminal_code: 'DOES-NOT-EXIST', activity: 'B', status: 'ANCHOR' },
+        { vessel_name: 'BULK ALPHA', type: 'CNTN', terminal_code: terminal.code, activity: 'L', status: 'AT SEA' },
+        { vessel_name: 'BULK BRAVO', type: 'BULK', terminal_id: terminal.id, activity: 'D', status: 'BERTH' },
+        { vessel_name: 'BULK CHARLIE', type: 'TANKER', terminal_code: 'DOES-NOT-EXIST', activity: 'B', status: 'ANCHOR' },
       ];
 
       const result = await vesselService.createVesselsBulk(rows, user.id, '10.0.0.9');
@@ -119,7 +119,7 @@ describe('VesselService Unit Tests', () => {
 
     it('should insert nothing when every row has an unknown terminal', async () => {
       const rows = [
-        { vessel_name: 'ORPHAN 1', type: 'Container', terminal_code: 'NOPE', activity: 'L', status: 'AT SEA' },
+        { vessel_name: 'ORPHAN 1', type: 'CNTN', terminal_code: 'NOPE', activity: 'L', status: 'AT SEA' },
       ];
 
       const result = await vesselService.createVesselsBulk(rows, user.id, '10.0.0.9');
