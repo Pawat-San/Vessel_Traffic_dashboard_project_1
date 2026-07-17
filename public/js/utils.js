@@ -121,7 +121,7 @@ const IMPORT_COLUMNS = [
  */
 function downloadImportTemplate() {
   const example = [
-    'EVER GIVEN', '0422-003', 'Container', 'A1', 'L',
+    'EVER GIVEN', '0422-003', 'CNTN', 'A1', 'L',
     '2026-07-10T14:30', '2026-07-10T16:00', '2026-07-11T02:00', '', 'AT SEA',
     'SINGAPORE', 'Sample row - delete before import',
   ];

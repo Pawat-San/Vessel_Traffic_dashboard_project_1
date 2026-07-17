@@ -3,7 +3,7 @@ const { createVesselSchema } = require('../../src/modules/vessel/vessel.schema')
 // Minimal valid payload shared across cases -- only `voy` varies.
 const basePayload = {
   vessel_name: 'TEST VESSEL',
-  type: 'Container',
+  type: 'CNTN',
   terminal_id: 1,
   activity: 'L',
   status: 'AT SEA',

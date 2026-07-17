@@ -45,7 +45,7 @@ async function createVessel(overrides = {}) {
   const vessel = {
     vessel_name: 'TEST VESSEL SHIP',
     voy: 'V001',
-    type: 'Container',
+    type: 'CNTN',
     terminal_id: 1, // must exist
     activity: 'L',
     eta: '2026-07-01T12:00:00.000Z',

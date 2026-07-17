@@ -919,6 +919,10 @@ header {
   color: var(--text-muted);
 }
 
+.required-asterisk {
+  color: var(--color-depart);
+}
+
 .form-control {
   padding: 0.45rem 0.7rem;
   background-color: rgba(0, 0, 0, 0.25);

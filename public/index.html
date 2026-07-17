@@ -171,7 +171,7 @@
             <legend class="form-section-title">Vessel Identity</legend>
             <div class="form-grid">
               <div class="form-group">
-                <label class="form-label" for="form-vessel-name">Vessel Name *</label>
+                <label class="form-label" for="form-vessel-name">Vessel Name <span class="required-asterisk">*</span></label>
                 <input class="form-control" type="text" id="form-vessel-name" required placeholder="e.g. EVER GIVEN">
               </div>
 
@@ -182,15 +182,22 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="form-type">Vessel Type *</label>
+                <label class="form-label" for="form-type">Vessel Type <span class="required-asterisk">*</span></label>
                 <select class="form-select" id="form-type" required>
-                  <option value="Container">Container</option>
-                  <option value="Bulk">Bulk</option>
-                  <option value="Tanker">Tanker</option>
-                  <option value="General">General</option>
-                  <option value="RoRo">RoRo</option>
-                  <option value="LPG">LPG</option>
-                  <option value="Passenger">Passenger</option>
+                  <option value="AMN">AMN - Ammonia Carrier</option>
+                  <option value="BULK">BULK - Bulk Carrier HND/SPX/UTX</option>
+                  <option value="CAPE">CAPE - Bulk Cape Size Vessel</option>
+                  <option value="CHMC">CHMC - Chemical Tanker</option>
+                  <option value="CNTN">CNTN - Container Vessel</option>
+                  <option value="CRUISE">CRUISE - Passenger Vessel</option>
+                  <option value="HVLT">HVLT - Heavy Lifter Vessel</option>
+                  <option value="LNG">LNG - LNG Carrier</option>
+                  <option value="LPG">LPG - LPG Carrier</option>
+                  <option value="MPP">MPP - Multi Purpose Vessel</option>
+                  <option value="PMX">PMX - Bulk Panamax Vessel</option>
+                  <option value="RORO">RORO - Roll on Roll off Pure Car Carrier</option>
+                  <option value="TANKER">TANKER - Tanker Oil Vessel</option>
+                  <option value="WCC">WCC - Wood Chip Carrier</option>
                 </select>
               </div>
             </div>
@@ -200,14 +207,14 @@
             <legend class="form-section-title">Berthing &amp; Status</legend>
             <div class="form-grid">
               <div class="form-group full-width">
-                <label class="form-label" for="form-terminal-id">Terminal Berthing *</label>
+                <label class="form-label" for="form-terminal-id">Terminal Berthing <span class="required-asterisk">*</span></label>
                 <select class="form-select" id="form-terminal-id" required>
                   <option value="">Select Terminal</option>
                 </select>
               </div>
 
               <div class="form-group full-width">
-                <label class="form-label" for="form-activity">Activity Code *</label>
+                <label class="form-label" for="form-activity">Activity Code <span class="required-asterisk">*</span></label>
                 <select class="form-select" id="form-activity" required>
                   <option value="L">L (Loading)</option>
                   <option value="D">D (Discharging)</option>
@@ -221,7 +228,7 @@
               </div>
 
               <div class="form-group full-width">
-                <label class="form-label" for="form-status">Traffic Status *</label>
+                <label class="form-label" for="form-status">Traffic Status <span class="required-asterisk">*</span></label>
                 <select class="form-select" id="form-status" required>
                   <option value="AT SEA">AT SEA</option>
                   <option value="ANCHOR">ANCHOR</option>
