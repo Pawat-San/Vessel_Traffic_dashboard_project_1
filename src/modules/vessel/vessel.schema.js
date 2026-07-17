@@ -51,7 +51,7 @@ const createVesselSchema = z.object({
     .nullable()
     .optional(),
   remark: z.string()
-    .max(500, 'Remark must be at most 500 characters')
+    .max(50, 'Remark must be at most 50 characters')
     .trim()
     .transform((val) => (val === '' ? null : val))
     .nullable()

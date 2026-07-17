@@ -554,17 +554,12 @@ header {
   text-overflow: ellipsis;
 }
 
-/* Notes wraps across up to 2 lines (rather than a single truncated line)
-   before falling back to an ellipsis, so more of a longer remark is
-   readable directly in the table without needing the hover tooltip. */
+/* No line clamp / ellipsis -- remark is capped at 50 characters server-side
+   (vessel.schema.js), short enough that wrapping freely within max-width
+   always shows the full note without needing to truncate. */
 .fids-cell.notes-cell {
-  max-width: 180px;
+  max-width: 220px;
   white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Two-line schedule cells (ETA/ETB/ETD/ATD): date on top, time below --
