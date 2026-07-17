@@ -37,6 +37,7 @@ const elements = {
   filterSearch: document.getElementById('filter-search'),
   searchWrapper: document.querySelector('.search-input-wrapper'),
   filtersGroup: document.querySelector('.filters-group'),
+  toolbarPanel: document.getElementById('toolbar-panel'),
   paginationInfo: document.getElementById('pagination-info'),
   btnPrevPage: document.getElementById('btn-prev-page'),
   btnNextPage: document.getElementById('btn-next-page'),
@@ -182,6 +183,14 @@ function applyRoleVisibility() {
   // leave an empty gap in the .control-panel flex row.
   if (elements.filtersGroup) {
     elements.filtersGroup.style.display = isViewer ? 'none' : '';
+  }
+  // A viewer has .filters-group hidden above AND every button in
+  // .action-group hidden individually (F4), so #toolbar-panel itself is
+  // always empty for a viewer -- without this it renders as a hollow
+  // bordered bar (padding + background, no content) between the summary
+  // cards and the table.
+  if (elements.toolbarPanel) {
+    elements.toolbarPanel.style.display = isViewer ? 'none' : '';
   }
 
   // Admin panel maintenance actions (archive trigger, purge)
