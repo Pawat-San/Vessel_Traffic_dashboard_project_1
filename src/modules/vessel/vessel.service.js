@@ -21,7 +21,7 @@ class VesselService {
   /**
    * Get filtered, sorted, paginated vessels list (Cache-Aside with 30s TTL)
    */
-  async getVessels(filters = {}, pagination = { limit: 20, offset: 0 }, sorting = { sortBy: 'eta', sortDir: 'ASC' }) {
+  async getVessels(filters = {}, pagination = { limit: 20, offset: 0 }, sorting = { sortBy: 'etd', sortDir: 'ASC' }) {
     const cacheKey = `vessels:list:${JSON.stringify({ filters, pagination, sorting })}`;
 
     const cached = cache.get(cacheKey);

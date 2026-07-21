@@ -44,7 +44,7 @@ class VesselRepository {
       terminal_code: 't.code',
     };
 
-    const sortBy = allowedSortFields[sorting.sortBy] || 'v.eta';
+    const sortBy = allowedSortFields[sorting.sortBy] || 'v.etd';
     const sortDir = sorting.sortDir && ['asc', 'desc'].includes(sorting.sortDir.toLowerCase())
       ? sorting.sortDir.toLowerCase()
       : 'asc';

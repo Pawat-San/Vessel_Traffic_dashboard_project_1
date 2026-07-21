@@ -14,7 +14,7 @@ class VesselController {
       };
 
       const sorting = {
-        sortBy: req.query.sortBy || 'eta',
+        sortBy: req.query.sortBy || 'etd',
         sortDir: req.query.sortDir || 'asc',
       };
 
