@@ -12,7 +12,7 @@ let state = {
     search: ''
   },
   sorting: {
-    sortBy: 'eta',
+    sortBy: 'etd',
     sortDir: 'asc'
   },
   pagination: {

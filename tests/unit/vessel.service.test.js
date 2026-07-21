@@ -28,9 +28,9 @@ describe('VesselService Unit Tests', () => {
   });
 
   describe('getVessels()', () => {
-    it('should sort vessels by ETA ascending by default', async () => {
-      await createVessel({ vessel_name: 'VESSEL B', eta: '2026-07-02T10:00:00.000Z', terminal_id: terminal.id });
-      await createVessel({ vessel_name: 'VESSEL A', eta: '2026-07-01T10:00:00.000Z', terminal_id: terminal.id });
+    it('should sort vessels by ETD ascending by default', async () => {
+      await createVessel({ vessel_name: 'VESSEL B', etd: '2026-07-02T10:00:00.000Z', terminal_id: terminal.id });
+      await createVessel({ vessel_name: 'VESSEL A', etd: '2026-07-01T10:00:00.000Z', terminal_id: terminal.id });
 
       const res = await vesselService.getVessels();
 
