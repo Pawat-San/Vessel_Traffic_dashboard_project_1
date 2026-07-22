@@ -65,7 +65,12 @@ class UsersRepository {
    * Update a user's profile fields (display_name/role/is_active)
    */
   async update(id, data, conn = database.db) {
-    await conn('users').where('id', id).update({ ...data, updated_at: conn.fn.now() });
+    const updateData = { ...data };
+    if (typeof updateData.is_active === 'boolean') {
+      // is_active is an integer column; Postgres has no implicit bool->integer cast.
+      updateData.is_active = updateData.is_active ? 1 : 0;
+    }
+    await conn('users').where('id', id).update({ ...updateData, updated_at: conn.fn.now() });
     return this.findById(id, conn);
   }
 
