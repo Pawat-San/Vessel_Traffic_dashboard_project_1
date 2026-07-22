@@ -921,6 +921,12 @@ header {
   display: block;
 }
 
+/* F23: non-blocking ATD plausibility warning -- amber, not red, so it reads
+   as "please confirm" rather than "you cannot submit". */
+.field-error.warning {
+  color: var(--color-anchor);
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
