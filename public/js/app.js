@@ -881,18 +881,20 @@ function clearScheduleErrors() {
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = '';
-    el.classList.remove('visible');
+    el.classList.remove('visible', 'warning');
   });
 }
 
 /**
  * Show an inline validation message under one of the schedule fields and
- * scroll it into view.
+ * scroll it into view. `level: 'warning'` (F23) styles it amber instead of
+ * red -- a warning is a "please confirm" prompt, not a blocking error.
  */
-function showScheduleError(id, message) {
+function showScheduleError(id, message, level = 'error') {
   const el = document.getElementById(id);
   if (!el) return;
   el.textContent = message;
+  el.classList.toggle('warning', level === 'warning');
   el.classList.add('visible');
   el.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
@@ -901,16 +903,21 @@ function showScheduleError(id, message) {
  * Chronological cross-field check for the vessel schedule (F7): each pair is
  * only compared when both sides are actually set, so partially-filled
  * schedules are never blocked.
+ *
+ * ATD is deliberately NOT compared to ETD here (F22): ETA/ETB/ETD are all
+ * estimates describing one self-consistent plan, so contradictions between
+ * them are typos and get blocked. ATD is a record of what actually
+ * happened -- a vessel departing before its estimated ETD is a normal
+ * operational outcome, not a data error, so it must never be blocked. See
+ * checkAtdPlausibility() for the non-blocking typo safeguard that replaces
+ * this check (F23).
  */
-function validateScheduleOrder(eta, etb, etd, atd) {
+function validateScheduleOrder(eta, etb, etd) {
   if (eta && etb && new Date(etb) < new Date(eta)) {
     return { id: 'form-etb-error', message: 'ETB must be on or after ETA.' };
   }
   if (etb && etd && new Date(etd) < new Date(etb)) {
     return { id: 'form-etd-error', message: 'ETD must be on or after ETB.' };
-  }
-  if (etd && atd && new Date(atd) < new Date(etd)) {
-    return { id: 'form-atd-error', message: 'ATD must be on or after ETD.' };
   }
   return null;
 }
@@ -1010,10 +1017,21 @@ async function onVesselFormSubmit(event) {
 
   // F7 cross-field validation: block submission on an illogical schedule
   // before ever touching the network.
-  const scheduleError = validateScheduleOrder(payload.eta, payload.etb, payload.etd, payload.atd);
+  const scheduleError = validateScheduleOrder(payload.eta, payload.etb, payload.etd);
   if (scheduleError) {
     showScheduleError(scheduleError.id, scheduleError.message);
     return;
+  }
+
+  // F23: ATD is never blocked, but an implausible value is usually a typo
+  // (wrong year/month) rather than a real early/late departure. Warn and let
+  // the user confirm instead of silently accepting or rejecting outright.
+  const atdWarning = window.validation.checkAtdPlausibility(payload.eta, payload.etd, payload.atd);
+  if (atdWarning) {
+    showScheduleError('form-atd-error', atdWarning, 'warning');
+    if (!confirm(`${atdWarning}\n\nContinue anyway?`)) {
+      return;
+    }
   }
 
   const saveBtn = document.getElementById('vessel-form-save-btn');
