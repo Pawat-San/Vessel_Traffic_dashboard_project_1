@@ -60,6 +60,32 @@ function formatDateTimeShort(isoString) {
 }
 
 /**
+ * Format an ISO datetime string with the full month name, for the dashboard
+ * header's last-updated indicator. Example: 2026-07-22T14:37:00.000Z ->
+ * '22 July 2026 14:37' (local time, 24h). Deliberately a separate function
+ * from formatDateTime (abbreviated month, used by the archive table/vessel
+ * form) so this display-only change can't affect those. Empty/invalid input
+ * returns '-'.
+ */
+function formatDateTimeFullMonth(isoString) {
+  if (!isoString) return '-';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '-';
+
+  const day = String(d.getDate()).padStart(2, '0');
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const month = months[d.getMonth()];
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+
+  return `${day} ${month} ${year} ${hours}:${minutes}`;
+}
+
+/**
  * Format a Date as a full date string for the dashboard header.
  * Example: 2026-07-24 -> 04-July-2026 (day always zero-padded, full English month name)
  */
@@ -126,7 +152,7 @@ function partsFromISO(isoString) {
   return { dateValue: `${year}-${month}-${day}`, hour, minute };
 }
 
-const formatters = { formatDateTime, formatDateTimeLines, formatDateTimeShort, formatFullDate, formatClockTime, toISOFromParts, partsFromISO };
+const formatters = { formatDateTime, formatDateTimeLines, formatDateTimeShort, formatDateTimeFullMonth, formatFullDate, formatClockTime, toISOFromParts, partsFromISO };
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = formatters;
