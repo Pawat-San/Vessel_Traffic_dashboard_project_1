@@ -213,6 +213,7 @@ window.utils = {
   formatDateTime: window.formatters.formatDateTime,
   formatDateTimeLines: window.formatters.formatDateTimeLines,
   formatDateTimeShort: window.formatters.formatDateTimeShort,
+  formatDateTimeFullMonth: window.formatters.formatDateTimeFullMonth,
   startLiveClock,
   exportVesselsToCSV,
   downloadImportTemplate,

@@ -115,6 +115,10 @@ class VesselRepository {
       total += count;
     }
     summary.total = total;
+
+    const latest = await database.db('vessels').max({ last_updated: 'date_modify' }).first();
+    summary.last_updated = latest ? latest.last_updated || null : null;
+
     return summary;
   }
 

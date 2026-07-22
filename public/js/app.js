@@ -451,6 +451,13 @@ async function fetchSummary() {
     animateCounter(elements.summaryAnchor, summary.ANCHOR);
     animateCounter(elements.summaryBerth, summary.BERTH);
     animateCounter(elements.summaryDepart, summary.DEPART);
+
+    const lastUpdatedEl = document.getElementById('last-updated-value');
+    if (lastUpdatedEl) {
+      lastUpdatedEl.textContent = summary.last_updated
+        ? window.utils.formatDateTimeFullMonth(summary.last_updated)
+        : '-';
+    }
   } catch (err) {
     console.error('Failed to load summary stats', err);
   }
