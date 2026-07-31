@@ -10,35 +10,40 @@ const basePayload = {
 };
 
 describe('createVesselSchema — voy (F13)', () => {
-  it('accepts exactly 4 alphanumeric characters', () => {
-    const result = createVesselSchema.safeParse({ ...basePayload, voy: '04A2' });
+  it('accepts exactly 3 digits', () => {
+    const result = createVesselSchema.safeParse({ ...basePayload, voy: '042' });
     expect(result.success).toBe(true);
-    expect(result.data.voy).toBe('04A2');
+    expect(result.data.voy).toBe('042');
   });
 
-  it('normalizes lowercase input to uppercase', () => {
-    const result = createVesselSchema.safeParse({ ...basePayload, voy: 'ab12' });
+  it('preserves a leading zero rather than coercing to a number', () => {
+    const result = createVesselSchema.safeParse({ ...basePayload, voy: '007' });
     expect(result.success).toBe(true);
-    expect(result.data.voy).toBe('AB12');
+    expect(result.data.voy).toBe('007');
   });
 
-  it('rejects 3-character VOY', () => {
-    const result = createVesselSchema.safeParse({ ...basePayload, voy: 'A12' });
+  it('rejects 2-digit VOY', () => {
+    const result = createVesselSchema.safeParse({ ...basePayload, voy: '42' });
     expect(result.success).toBe(false);
   });
 
-  it('rejects 5-character VOY', () => {
-    const result = createVesselSchema.safeParse({ ...basePayload, voy: 'A1234' });
+  it('rejects 4-digit VOY', () => {
+    const result = createVesselSchema.safeParse({ ...basePayload, voy: '0422' });
     expect(result.success).toBe(false);
+  });
+
+  it('rejects letters, even at 3 characters', () => {
+    expect(createVesselSchema.safeParse({ ...basePayload, voy: 'A12' }).success).toBe(false);
+    expect(createVesselSchema.safeParse({ ...basePayload, voy: 'ABC' }).success).toBe(false);
+  });
+
+  it('rejects non-digit characters at 3 characters', () => {
+    expect(createVesselSchema.safeParse({ ...basePayload, voy: '0-2' }).success).toBe(false);
+    expect(createVesselSchema.safeParse({ ...basePayload, voy: '4 2' }).success).toBe(false);
   });
 
   it('still allows a blank/omitted VOY (optional field)', () => {
     expect(createVesselSchema.safeParse({ ...basePayload, voy: '' }).success).toBe(true);
     expect(createVesselSchema.safeParse(basePayload).success).toBe(true);
-  });
-
-  it('rejects non-alphanumeric characters even at 4 chars', () => {
-    const result = createVesselSchema.safeParse({ ...basePayload, voy: '04-2' });
-    expect(result.success).toBe(false);
   });
 });

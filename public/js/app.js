@@ -991,7 +991,7 @@ async function onVesselFormSubmit(event) {
   event.preventDefault();
   clearScheduleErrors();
 
-  const voy = document.getElementById('form-voy').value.trim().toUpperCase();
+  const voy = document.getElementById('form-voy').value.trim();
 
   const payload = {
     vessel_name: document.getElementById('form-vessel-name').value,
@@ -1008,10 +1008,9 @@ async function onVesselFormSubmit(event) {
     remark: document.getElementById('form-remark').value || null,
   };
 
-  // F13: VOY is optional, but if provided must be exactly 4 alphanumeric
-  // characters (auto-uppercased above).
-  if (voy && !/^[A-Z0-9]{4}$/.test(voy)) {
-    showScheduleError('form-voy-error', 'VOY must be exactly 4 alphanumeric characters.');
+  // F13: VOY is optional, but if provided must be exactly 3 digits.
+  if (voy && !/^[0-9]{3}$/.test(voy)) {
+    showScheduleError('form-voy-error', 'VOY must be exactly 3 digits.');
     return;
   }
 

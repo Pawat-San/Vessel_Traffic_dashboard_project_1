@@ -53,7 +53,7 @@ describe('VesselService Unit Tests', () => {
     it('should create vessel, set updated_by, and write an audit log entry', async () => {
       const payload = {
         vessel_name: 'CONTAINER SHIP ALPHA',
-        voy: 'VOY-99',
+        voy: '099',
         type: 'CNTN',
         terminal_id: terminal.id,
         activity: 'L',

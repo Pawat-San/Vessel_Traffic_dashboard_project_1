@@ -44,7 +44,7 @@ async function createTerminal(overrides = {}) {
 async function createVessel(overrides = {}) {
   const vessel = {
     vessel_name: 'TEST VESSEL SHIP',
-    voy: 'V001',
+    voy: '001',
     type: 'CNTN',
     terminal_id: 1, // must exist
     activity: 'L',

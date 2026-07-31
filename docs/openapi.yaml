@@ -381,6 +381,10 @@ components:
           type: string
         voy:
           type: string
+          nullable: true
+          pattern: '^[0-9]{3}$'
+          example: '042'
+          description: Optional voyage code. If provided, must be exactly 3 digits.
         type:
           type: string
           enum: [Container, Bulk, Tanker, General, RoRo, LPG, Passenger]
