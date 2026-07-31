@@ -18,15 +18,14 @@ const createVesselSchema = z.object({
     .min(1, 'Vessel name is required')
     .max(100, 'Vessel name must be at most 100 characters')
     .trim(),
-  // F13: optional, but if provided must be exactly 4 alphanumeric characters.
+  // F13: optional, but if provided must be exactly 3 digits.
   voy: z.string()
     .trim()
-    .toUpperCase()
     .transform((val) => (val === '' ? null : val))
     .nullable()
     .optional()
-    .refine((val) => val === null || val === undefined || /^[A-Z0-9]{4}$/.test(val), {
-      message: 'VOY must be exactly 4 alphanumeric characters',
+    .refine((val) => val === null || val === undefined || /^[0-9]{3}$/.test(val), {
+      message: 'VOY must be exactly 3 digits',
     }),
   type: z.enum(['AMN','BULK','CAPE','CHMC','CNTN','CRUISE','HVLT','LNG','LPG','MPP','PMX','RORO','TANKER','WCC'], {
     errorMap: () => ({ message: 'Vessel type must be one of: AMN, BULK, CAPE, CHMC, CNTN, CRUISE, HVLT, LNG, LPG, MPP, PMX, RORO, TANKER, WCC' })
