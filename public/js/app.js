@@ -596,7 +596,7 @@ function renderVesselsTable() {
         <td class="fids-cell time-cell" data-label="ETD">${renderScheduleCell(v.etd)}</td>
         <td class="fids-cell time-cell" data-label="ATD">${renderScheduleCell(v.atd)}</td>
         <td class="fids-cell" data-label="Status">
-          <span class="status-badge ${v.status.toLowerCase().replace(' ', '-')} ${animationClass}">
+          <span class="status-badge ${v.status.toLowerCase().replace(/ /g, '-')} ${animationClass}">
             ${esc(v.status)}
           </span>
         </td>
@@ -1123,7 +1123,7 @@ let importParsedRows = [];
 
 const VALID_TYPES = ['AMN', 'BULK', 'CAPE', 'CHMC', 'CNTN', 'CRUISE', 'HVLT', 'LNG', 'LPG', 'MPP', 'PMX', 'RORO', 'TANKER', 'WCC'];
 const VALID_ACTIVITIES = ['L', 'D', 'B', 'DD', 'LD', 'LB', 'DB', 'LDB', 'L,D', 'L,B', 'D,B', 'L,D,B'];
-const VALID_STATUSES = ['AT SEA', 'ANCHOR', 'BERTH', 'DEPART'];
+const VALID_STATUSES = ['AT SEA', 'ANCHOR', 'BERTH', 'DEPART', 'AT 1st PORT', 'AT 2nd PORT'];
 
 /**
  * Open the import modal in a clean state.
@@ -1148,14 +1148,16 @@ function validateImportRow(raw) {
   const type = (raw.type || '').trim();
   const terminalCode = (raw.terminal_code || '').trim();
   const activity = (raw.activity || '').trim();
-  const status = (raw.status || '').trim().toUpperCase();
+  const status = (raw.status || '').trim();
 
   if (!name) return { valid: false, reason: 'Missing vessel_name' };
   if (!VALID_TYPES.includes(type)) return { valid: false, reason: `Invalid type "${type}"` };
   if (!terminalCode) return { valid: false, reason: 'Missing terminal_code' };
   if (!terminalCodes.has(terminalCode.toUpperCase())) return { valid: false, reason: `Unknown terminal "${terminalCode}"` };
   if (!VALID_ACTIVITIES.includes(activity)) return { valid: false, reason: `Invalid activity "${activity}"` };
-  if (!VALID_STATUSES.includes(status)) return { valid: false, reason: `Invalid status "${raw.status || ''}"` };
+  if (!VALID_STATUSES.some(s => s.toUpperCase() === status.toUpperCase())) {
+  return { valid: false, reason: `Invalid status "${raw.status || ''}"` };
+  }
 
   // Optional dates: if present, must be parseable. Send ISO to the server.
   const dates = {};
