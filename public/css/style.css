@@ -653,6 +653,14 @@ header {
   box-shadow: inset 0 0 4px rgba(239, 68, 68, 0.1);
 }
 
+.status-badge.at-1st-port,
+.status-badge.at-2nd-port {
+  background-color: rgba(168, 85, 247, 0.1);
+  color: var(--color-purple);
+  border-color: rgba(168, 85, 247, 0.2);
+  box-shadow: inset 0 0 4px rgba(168, 85, 247, 0.1);
+}
+
 /* FIDS Flip Animation on Status Change */
 @keyframes flipIn {
   from {

@@ -40,8 +40,8 @@ const createVesselSchema = z.object({
   etb: dateSchema,
   etd: dateSchema,
   atd: dateSchema,
-  status: z.enum(['AT SEA','ANCHOR','BERTH','DEPART'], {
-    errorMap: () => ({ message: 'Status must be one of: AT SEA, ANCHOR, BERTH, DEPART' })
+  status: z.enum(['AT SEA','ANCHOR','BERTH','DEPART','AT 1st PORT','AT 2nd PORT'], {
+    errorMap: () => ({ message: 'Status must be one of: AT SEA, ANCHOR, BERTH, DEPART, AT 1st PORT, AT 2nd PORT' })
   }),
   next_port: z.string()
     .max(100, 'Next port name must be at most 100 characters')
@@ -80,7 +80,7 @@ const bulkImportSchema = z.object({
 });
 
 const queryVesselSchema = z.object({
-  status: z.enum(['AT SEA','ANCHOR','BERTH','DEPART']).optional(),
+  status: z.enum(['AT SEA','ANCHOR','BERTH','DEPART','AT 1st PORT','AT 2nd PORT']).optional(),
   terminal_id: z.string().regex(/^\d+$/).transform(Number).optional(),
   search: z.string().optional(),
   page: z.string().regex(/^\d+$/).transform(Number).optional(),
