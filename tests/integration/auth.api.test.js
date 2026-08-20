@@ -72,7 +72,7 @@ describe('Auth API integration', () => {
     const changeRes = await request(app)
       .post('/api/users/me/change-password')
       .set('Authorization', `Bearer ${token}`)
-      .send({ new_password: 'newpassword456' });
+      .send({ new_password: 'Newpassword456!' });
 
     expect(changeRes.status).toBe(200);
 
@@ -81,5 +81,42 @@ describe('Auth API integration', () => {
       .set('Authorization', `Bearer ${token}`);
 
     expect(vesselsRes.status).toBe(200);
+  });
+
+  it('forces an expired password change and revokes the previous refresh token', async () => {
+    const expiredAt = new Date(Date.now() - 91 * 24 * 60 * 60 * 1000).toISOString();
+    await createUser({
+      username: 'expireduser1',
+      password: 'Expired1!',
+      role: 'operator',
+      password_changed_at: expiredAt,
+    });
+
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'expireduser1', password: 'Expired1!' });
+
+    expect(loginRes.status).toBe(200);
+    expect(loginRes.body.data.user.mustChangePassword).toBe(true);
+    expect(loginRes.body.data.user.passwordExpired).toBe(true);
+
+    const token = loginRes.body.data.accessToken;
+    const oldRefreshToken = loginRes.body.data.refreshToken;
+    const blockedRes = await request(app)
+      .get('/api/vessels')
+      .set('Authorization', `Bearer ${token}`);
+    expect(blockedRes.status).toBe(403);
+    expect(blockedRes.body.error.details.passwordExpired).toBe(true);
+
+    const changeRes = await request(app)
+      .post('/api/users/me/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ new_password: 'Renewed1!' });
+    expect(changeRes.status).toBe(200);
+
+    const refreshRes = await request(app)
+      .post('/api/auth/refresh')
+      .send({ refreshToken: oldRefreshToken });
+    expect(refreshRes.status).toBe(401);
   });
 });

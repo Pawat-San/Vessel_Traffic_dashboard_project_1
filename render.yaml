@@ -15,6 +15,10 @@ services:
         value: "true"
       - key: SEED_DEMO_ACCOUNTS
         value: "false"
+      - key: PASSWORD_MAX_AGE_DAYS
+        value: "90"
+      - key: PASSWORD_HISTORY_LIMIT
+        value: "5"
       # Auto-generated secure random values -- satisfies the fail-fast check
       # in src/config/index.js without you having to generate them yourself.
       - key: JWT_SECRET

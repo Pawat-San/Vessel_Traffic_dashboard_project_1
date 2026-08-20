@@ -1,4 +1,8 @@
-const { checkAtdPlausibility } = require('../../public/js/validation');
+const {
+  checkAtdPlausibility,
+  checkPasswordRequirements,
+  isPasswordChecklistValid,
+} = require('../../public/js/validation');
 
 describe('validation', () => {
   describe('checkAtdPlausibility()', () => {
@@ -58,6 +62,24 @@ describe('validation', () => {
 
     it('returns null for unparseable dates', () => {
       expect(checkAtdPlausibility('not-a-date', 'not-a-date', 'not-a-date')).toBeNull();
+    });
+  });
+
+  describe('password checklist', () => {
+    it('marks every requirement complete for a valid matching password', () => {
+      const checks = checkPasswordRequirements('secure1!', 'secure1!');
+      expect(Object.values(checks).every(Boolean)).toBe(true);
+      expect(isPasswordChecklistValid('secure1!', 'secure1!')).toBe(true);
+    });
+
+    it('reports individual missing requirements and mismatched confirmation', () => {
+      const checks = checkPasswordRequirements('PASSWORD', 'different');
+      expect(checks.length).toBe(true);
+      expect(checks.lowercase).toBe(false);
+      expect(checks.number).toBe(false);
+      expect(checks.special).toBe(false);
+      expect(checks.noWhitespace).toBe(true);
+      expect(checks.matches).toBe(false);
     });
   });
 });

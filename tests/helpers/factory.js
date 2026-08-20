@@ -5,7 +5,7 @@ const database = require('../../src/database/knex');
  * Inserts a mock user into test database
  */
 async function createUser(overrides = {}) {
-  const password = overrides.password || 'password123';
+  const password = overrides.password || 'password1!';
   const user = {
     username: `user_${Math.random().toString(36).substring(7)}`,
     password_hash: await hashPassword(password),
@@ -13,11 +13,17 @@ async function createUser(overrides = {}) {
     role: 'operator',
     is_active: 1,
     must_change_password: false,
+    password_changed_at: new Date().toISOString(),
     ...overrides,
   };
   delete user.password;
 
   const [row] = await database.db('users').insert(user).returning('*');
+  await database.db('password_history').insert({
+    user_id: row.id,
+    password_hash: row.password_hash,
+    created_at: row.password_changed_at || new Date().toISOString(),
+  });
   return row;
 }
 

@@ -70,6 +70,67 @@ let editingAccountId = null;
 // for confirmation instead of silently discarding in-progress edits.
 let vesselFormDirty = false;
 
+const passwordFormConfigs = {
+  account: {
+    passwordId: 'account-form-password',
+    confirmId: 'account-form-password-confirm',
+    checklistId: 'account-password-checklist',
+    submitId: 'account-form-save-btn',
+  },
+  reset: {
+    passwordId: 'reset-password-new',
+    confirmId: 'reset-password-confirm',
+    checklistId: 'reset-password-checklist',
+    submitId: 'reset-password-submit-btn',
+  },
+  force: {
+    passwordId: 'force-password-new',
+    confirmId: 'force-password-confirm',
+    checklistId: 'force-password-checklist',
+    submitId: 'force-password-submit-btn',
+  },
+};
+
+function updatePasswordChecklist(name) {
+  const config = passwordFormConfigs[name];
+  const passwordInput = document.getElementById(config.passwordId);
+  const confirmInput = document.getElementById(config.confirmId);
+  const checklist = document.getElementById(config.checklistId);
+  const submitButton = document.getElementById(config.submitId);
+  if (!passwordInput || !confirmInput || !checklist || !submitButton) return false;
+
+  // Editing an existing account does not include a password operation.
+  if (name === 'account' && editingAccountId !== null) {
+    submitButton.disabled = false;
+    return true;
+  }
+
+  const checks = window.validation.checkPasswordRequirements(passwordInput.value, confirmInput.value);
+  Object.entries(checks).forEach(([rule, passed]) => {
+    const item = checklist.querySelector(`[data-rule="${rule}"]`);
+    if (!item) return;
+    item.classList.toggle('valid', passed);
+    const icon = item.querySelector('.password-rule-icon');
+    if (icon) icon.textContent = passed ? '✓' : '○';
+  });
+
+  const valid = Object.values(checks).every(Boolean);
+  submitButton.disabled = !valid;
+  return valid;
+}
+
+function setupPasswordChecklist(name) {
+  const config = passwordFormConfigs[name];
+  const passwordInput = document.getElementById(config.passwordId);
+  const confirmInput = document.getElementById(config.confirmId);
+  if (!passwordInput || !confirmInput) return;
+
+  const update = () => updatePasswordChecklist(name);
+  passwordInput.addEventListener('input', update);
+  confirmInput.addEventListener('input', update);
+  update();
+}
+
 /**
  * Initialize Dashboard
  */
@@ -108,6 +169,14 @@ async function initDashboard() {
  * successfully submitting a new password.
  */
 function showForcedPasswordChangeModal() {
+  const user = window.api.getUser();
+  const message = document.getElementById('force-password-message');
+  if (message) {
+    message.textContent = user && user.passwordExpired
+      ? 'Your password has expired after 90 days. Set a new password to continue.'
+      : 'Your password must be changed before you can continue.';
+  }
+  updatePasswordChecklist('force');
   window.components.openModal('force-password-modal');
 }
 
@@ -117,7 +186,13 @@ function showForcedPasswordChangeModal() {
  * mid-session), so the block applies immediately regardless of which part of
  * the app triggered the request.
  */
-window.onPasswordChangeRequired = function onPasswordChangeRequired() {
+window.onPasswordChangeRequired = function onPasswordChangeRequired(details = {}) {
+  const user = window.api.getUser();
+  if (user) {
+    user.mustChangePassword = true;
+    user.passwordExpired = Boolean(details.passwordExpired);
+    window.api.setUser(user);
+  }
   showForcedPasswordChangeModal();
 };
 
@@ -131,6 +206,7 @@ function applyRoleVisibility() {
   const isAdmin = user.role === 'admin';
   const isOperator = user.role === 'operator';
   const isViewer = user.role === 'viewer';
+  const isSuperadmin = user.role === 'superadmin';
 
   // "Add Vessel" + "Import CSV" buttons: admin/operator only.
   // Export CSV + View Archive: viewer is view-only (F4) -- hidden for viewers.
@@ -199,7 +275,6 @@ function applyRoleVisibility() {
   }
 
   // Account management panel (admin + superadmin)
-  const isSuperadmin = user.role === 'superadmin';
   if (elements.accountsToolsContainer) {
     elements.accountsToolsContainer.style.display = (isAdmin || isSuperadmin) ? 'flex' : 'none';
   }
@@ -207,6 +282,11 @@ function applyRoleVisibility() {
   // Only a superadmin can grant the superadmin role
   if (elements.accountFormRoleSuperadminOption) {
     elements.accountFormRoleSuperadminOption.style.display = isSuperadmin ? '' : 'none';
+  }
+
+  const createAccountBtn = document.getElementById('create-account-btn');
+  if (createAccountBtn) {
+    createAccountBtn.style.display = isSuperadmin ? 'inline-flex' : 'none';
   }
 }
 
@@ -272,7 +352,7 @@ function renderAccountsTable(accounts) {
         <td class="fids-cell">${account.is_active ? 'Active' : 'Deactivated'}</td>
         <td class="fids-cell action-cell">
           <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="edit" data-id="${account.id}" ${disabledAttr}>Edit</button>
-          <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="reset" data-id="${account.id}" ${disabledAttr}>Reset PW</button>
+          ${actorIsSuperadmin ? `<button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="reset" data-id="${account.id}">Reset PW</button>` : ''}
           <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="deactivate" data-id="${account.id}" ${disabledAttr || (isSelf ? 'disabled' : '')}>Deactivate</button>
         </td>
       </tr>
@@ -292,7 +372,9 @@ function onCreateAccountClick() {
   document.getElementById('account-form-username').disabled = false;
   elements.accountFormPasswordGroup.style.display = '';
   document.getElementById('account-form-password').required = true;
+  document.getElementById('account-form-password-confirm').required = true;
   elements.accountFormActiveGroup.style.display = 'none';
+  updatePasswordChecklist('account');
   window.components.openModal('account-form-modal');
 }
 
@@ -310,10 +392,12 @@ async function onEditAccountClick(id) {
     document.getElementById('account-form-username').disabled = true;
     elements.accountFormPasswordGroup.style.display = 'none';
     document.getElementById('account-form-password').required = false;
+    document.getElementById('account-form-password-confirm').required = false;
     document.getElementById('account-form-display-name').value = account.display_name;
     document.getElementById('account-form-role').value = account.role;
     elements.accountFormActiveGroup.style.display = '';
     document.getElementById('account-form-active').checked = Boolean(account.is_active);
+    updatePasswordChecklist('account');
 
     window.components.openModal('account-form-modal');
   } catch (err) {
@@ -337,6 +421,10 @@ async function onAccountFormSubmit(event) {
       await window.api.put(`/users/${editingAccountId}`, payload);
       window.components.showToast('Account updated successfully', 'success');
     } else {
+      if (!updatePasswordChecklist('account')) {
+        window.components.showToast('Password requirements are not complete', 'warning');
+        return;
+      }
       const payload = {
         username: document.getElementById('account-form-username').value,
         password: document.getElementById('account-form-password').value,
@@ -361,6 +449,7 @@ async function onAccountFormSubmit(event) {
 function onResetPasswordClick(id) {
   editingAccountId = id;
   elements.resetPasswordForm.reset();
+  updatePasswordChecklist('reset');
   window.components.openModal('reset-password-modal');
 }
 
@@ -369,6 +458,11 @@ function onResetPasswordClick(id) {
  */
 async function onResetPasswordFormSubmit(event) {
   event.preventDefault();
+
+  if (!updatePasswordChecklist('reset')) {
+    window.components.showToast('Password requirements are not complete', 'warning');
+    return;
+  }
 
   try {
     const newPassword = document.getElementById('reset-password-new').value;
@@ -405,22 +499,18 @@ async function onDeactivateAccountClick(id) {
 async function onForcePasswordFormSubmit(event) {
   event.preventDefault();
 
+  if (!updatePasswordChecklist('force')) {
+    window.components.showToast('Password requirements are not complete', 'warning');
+    return;
+  }
+
   try {
     const newPassword = document.getElementById('force-password-new').value;
     await window.api.post('/users/me/change-password', { new_password: newPassword });
 
-    // Update the cached user so the (now-cleared) flag doesn't re-trigger this
-    // same modal on reload -- the server has already cleared it, but the
-    // locally cached copy from login must be refreshed to match.
-    const user = window.api.getUser();
-    if (user) {
-      user.mustChangePassword = false;
-      window.api.setUser(user);
-    }
-
-    window.components.showToast('Password changed successfully', 'success');
-    window.components.closeModal('force-password-modal');
-    window.location.reload();
+    window.api.clearTokens();
+    window.api.clearUser();
+    window.location.href = '/login.html';
   } catch (error) {
     const msg = error.error ? error.error.message : 'Failed to change password';
     window.components.showToast(msg, 'error');
@@ -778,6 +868,8 @@ function setupEventListeners() {
     elements.accountForm.addEventListener('submit', onAccountFormSubmit);
   }
 
+  setupPasswordChecklist('account');
+
   const closeResetPasswordTop = document.getElementById('reset-password-modal-close-top');
   if (closeResetPasswordTop) closeResetPasswordTop.addEventListener('click', () => window.components.closeModal('reset-password-modal'));
   const closeResetPasswordBottom = document.getElementById('reset-password-close-bottom');
@@ -787,9 +879,13 @@ function setupEventListeners() {
     elements.resetPasswordForm.addEventListener('submit', onResetPasswordFormSubmit);
   }
 
+  setupPasswordChecklist('reset');
+
   if (elements.forcePasswordForm) {
     elements.forcePasswordForm.addEventListener('submit', onForcePasswordFormSubmit);
   }
+
+  setupPasswordChecklist('force');
 
   if (elements.accountsTableBody) {
     elements.accountsTableBody.addEventListener('click', (e) => {

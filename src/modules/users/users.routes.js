@@ -26,9 +26,9 @@ router.use(requirePasswordChange);
 // Account management -> Admin or Superadmin only
 router.get('/', authorize(['admin', 'superadmin']), usersController.list);
 router.get('/:id', authorize(['admin', 'superadmin']), usersController.getById);
-router.post('/', authorize(['admin', 'superadmin']), validate.body(createUserSchema), usersController.create);
+router.post('/', authorize(['superadmin']), validate.body(createUserSchema), usersController.create);
 router.put('/:id', authorize(['admin', 'superadmin']), validate.body(updateUserSchema), usersController.update);
 router.delete('/:id', authorize(['admin', 'superadmin']), usersController.deactivate);
-router.post('/:id/reset-password', authorize(['admin', 'superadmin']), validate.body(adminResetPasswordSchema), usersController.resetPassword);
+router.post('/:id/reset-password', authorize(['superadmin']), validate.body(adminResetPasswordSchema), usersController.resetPassword);
 
 module.exports = router;

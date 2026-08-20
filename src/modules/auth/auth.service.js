@@ -3,7 +3,8 @@ const crypto = require('crypto');
 const config = require('../../config');
 const authRepository = require('./auth.repository');
 const { hashPassword, verifyPassword, isLegacyHash } = require('../../utils/password');
-const { AuthenticationError } = require('../../utils/errors');
+const { isPasswordExpired } = require('../../utils/passwordPolicy');
+const { AuthenticationError, PasswordChangeRequiredError } = require('../../utils/errors');
 const logger = require('../../utils/logger');
 
 class AuthService {
@@ -39,6 +40,9 @@ class AuthService {
       logger.info(`Migrated password hash to argon2 for user: ${user.username}`, { userId: user.id });
     }
 
+    const passwordExpired = isPasswordExpired(user.password_changed_at, config.password.maxAgeDays);
+    const mustChangePassword = Boolean(user.must_change_password) || passwordExpired;
+
     // Generate tokens
     const accessToken = jwt.sign(
       {
@@ -71,7 +75,8 @@ class AuthService {
         username: user.username,
         displayName: user.display_name,
         role: user.role,
-        mustChangePassword: Boolean(user.must_change_password),
+        mustChangePassword,
+        passwordExpired,
       }
     };
   }
@@ -88,6 +93,14 @@ class AuthService {
       const user = await authRepository.findById(decoded.id);
       if (!user || user.is_active !== 1) {
         throw new AuthenticationError('User is no longer active or exists');
+      }
+
+      const passwordExpired = isPasswordExpired(user.password_changed_at, config.password.maxAgeDays);
+      if (user.must_change_password || passwordExpired) {
+        throw new PasswordChangeRequiredError(
+          passwordExpired ? 'Password has expired and must be changed' : undefined,
+          { passwordExpired }
+        );
       }
 
       // 3. Verify token hash against database record
@@ -115,7 +128,7 @@ class AuthService {
 
       return { accessToken };
     } catch (error) {
-      if (error instanceof AuthenticationError) {
+      if (error instanceof AuthenticationError || error instanceof PasswordChangeRequiredError) {
         throw error;
       }
       logger.error('Token refresh execution failed', { error: error.message });

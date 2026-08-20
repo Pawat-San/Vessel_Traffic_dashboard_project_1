@@ -1,7 +1,17 @@
 const usersRepository = require('./users.repository');
-const { canManageUser } = require('./users.policy');
+const { canManageUser, canCreateOrResetUser } = require('./users.policy');
 const { hashPassword, verifyPassword } = require('../../utils/password');
-const { NotFoundError, ConflictError, AuthorizationError, AuthenticationError } = require('../../utils/errors');
+const { getPasswordPolicyErrors, isPasswordExpired } = require('../../utils/passwordPolicy');
+const {
+  NotFoundError,
+  ConflictError,
+  AuthorizationError,
+  AuthenticationError,
+  ValidationError,
+  PasswordRecentlyUsedError,
+} = require('../../utils/errors');
+const config = require('../../config');
+const database = require('../../database/knex');
 const logger = require('../../utils/logger');
 
 class UsersService {
@@ -13,6 +23,64 @@ class UsersService {
     if (!decision.allowed) {
       throw new AuthorizationError(decision.reason);
     }
+  }
+
+  assertCanCreateOrReset(actorRole) {
+    const decision = canCreateOrResetUser(actorRole);
+    if (!decision.allowed) {
+      throw new AuthorizationError(decision.reason);
+    }
+  }
+
+  assertPasswordMeetsPolicy(password, field = 'new_password') {
+    const errors = getPasswordPolicyErrors(password);
+    if (errors.length > 0) {
+      throw new ValidationError('Password does not meet security requirements', errors.map((error) => ({
+        field,
+        code: error.code,
+        message: error.message,
+      })));
+    }
+  }
+
+  async assertPasswordNotReused(userId, candidatePassword, conn) {
+    const recent = await usersRepository.findRecentPasswordHashes(
+      userId,
+      config.password.historyLimit,
+      conn
+    );
+
+    for (const entry of recent) {
+      if (await verifyPassword(candidatePassword, entry.password_hash)) {
+        throw new PasswordRecentlyUsedError();
+      }
+    }
+  }
+
+  async setUserPassword({ targetUserId, newPassword, mustChangePassword, actorUserId, auditAction, auditReason, clientIp }) {
+    this.assertPasswordMeetsPolicy(newPassword);
+
+    await database.db.transaction(async (trx) => {
+      await this.assertPasswordNotReused(targetUserId, newPassword, trx);
+      const passwordHash = await hashPassword(newPassword);
+
+      await usersRepository.setPasswordSecurityState(targetUserId, {
+        password_hash: passwordHash,
+        password_changed_at: new Date().toISOString(),
+        must_change_password: mustChangePassword,
+      }, trx);
+
+      await usersRepository.insertPasswordHistory(targetUserId, passwordHash, trx);
+      await usersRepository.prunePasswordHistory(targetUserId, config.password.historyLimit, trx);
+      await usersRepository.createAuditLog({
+        action: auditAction,
+        entity_type: 'user',
+        entity_id: targetUserId,
+        changes: { reason: auditReason },
+        user_id: actorUserId,
+        ip_address: clientIp,
+      }, trx);
+    });
   }
 
   /**
@@ -54,30 +122,38 @@ class UsersService {
   }
 
   async createUser(actorUser, data, clientIp) {
+    this.assertCanCreateOrReset(actorUser.role);
     this.assertCanManage(actorUser.role, undefined, data.role);
+    this.assertPasswordMeetsPolicy(data.password, 'password');
 
     const existing = await usersRepository.findByUsername(data.username);
     if (existing) {
       throw new ConflictError(`Username '${data.username}' is already taken`);
     }
 
-    const password_hash = await hashPassword(data.password);
-    const created = await usersRepository.create({
-      username: data.username,
-      password_hash,
-      display_name: data.display_name,
-      role: data.role,
-      is_active: 1,
-      must_change_password: true,
-    });
+    const passwordHash = await hashPassword(data.password);
+    const created = await database.db.transaction(async (trx) => {
+      const newUser = await usersRepository.create({
+        username: data.username,
+        password_hash: passwordHash,
+        display_name: data.display_name,
+        role: data.role,
+        is_active: 1,
+        must_change_password: true,
+        password_changed_at: new Date().toISOString(),
+      }, trx);
 
-    await usersRepository.createAuditLog({
-      action: 'CREATE',
-      entity_type: 'user',
-      entity_id: created.id,
-      changes: { username: data.username, role: data.role },
-      user_id: actorUser.id,
-      ip_address: clientIp,
+      await usersRepository.insertPasswordHistory(newUser.id, passwordHash, trx);
+      await usersRepository.createAuditLog({
+        action: 'CREATE',
+        entity_type: 'user',
+        entity_id: newUser.id,
+        changes: { username: data.username, role: data.role },
+        user_id: actorUser.id,
+        ip_address: clientIp,
+      }, trx);
+
+      return newUser;
     });
 
     logger.info(`User account created: ${created.username}`, { userId: created.id, createdBy: actorUser.id });
@@ -125,19 +201,18 @@ class UsersService {
   }
 
   async resetPassword(actorUser, targetId, newPassword, clientIp) {
+    this.assertCanCreateOrReset(actorUser.role);
     const target = await this.getUserById(targetId);
     this.assertCanManage(actorUser.role, target.role);
 
-    const password_hash = await hashPassword(newPassword);
-    await usersRepository.setPasswordAndForceChange(targetId, password_hash);
-
-    await usersRepository.createAuditLog({
-      action: 'PASSWORD_RESET',
-      entity_type: 'user',
-      entity_id: targetId,
-      changes: { reset_by: actorUser.id },
-      user_id: actorUser.id,
-      ip_address: clientIp,
+    await this.setUserPassword({
+      targetUserId: targetId,
+      newPassword,
+      mustChangePassword: true,
+      actorUserId: actorUser.id,
+      auditAction: 'PASSWORD_RESET',
+      auditReason: 'superadmin_reset',
+      clientIp,
     });
 
     logger.info(`Password reset for user: ${target.username}`, { userId: targetId, resetBy: actorUser.id });
@@ -150,7 +225,10 @@ class UsersService {
       throw new NotFoundError('User not found');
     }
 
-    if (!credentials.must_change_password) {
+    const passwordExpired = isPasswordExpired(credentials.password_changed_at, config.password.maxAgeDays);
+    const forcedChange = Boolean(credentials.must_change_password) || passwordExpired;
+
+    if (!forcedChange) {
       if (!current_password) {
         throw new AuthenticationError('Current password is required');
       }
@@ -160,16 +238,14 @@ class UsersService {
       }
     }
 
-    const password_hash = await hashPassword(new_password);
-    await usersRepository.setOwnPassword(actorUser.id, password_hash);
-
-    await usersRepository.createAuditLog({
-      action: 'PASSWORD_SELF_CHANGE',
-      entity_type: 'user',
-      entity_id: actorUser.id,
-      changes: { self_change: true },
-      user_id: actorUser.id,
-      ip_address: clientIp,
+    await this.setUserPassword({
+      targetUserId: actorUser.id,
+      newPassword: new_password,
+      mustChangePassword: false,
+      actorUserId: actorUser.id,
+      auditAction: passwordExpired ? 'PASSWORD_EXPIRED_CHANGE' : 'PASSWORD_SELF_CHANGE',
+      auditReason: passwordExpired ? 'expired' : (credentials.must_change_password ? 'forced_change' : 'voluntary_change'),
+      clientIp,
     });
 
     logger.info(`User changed their own password: ${actorUser.username}`, { userId: actorUser.id });

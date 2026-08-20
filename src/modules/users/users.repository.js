@@ -1,7 +1,8 @@
 const database = require('../../database/knex');
 
 const SAFE_USER_COLUMNS = [
-  'id', 'username', 'display_name', 'role', 'is_active', 'must_change_password', 'created_at', 'updated_at',
+  'id', 'username', 'display_name', 'role', 'is_active', 'must_change_password',
+  'created_at', 'updated_at',
 ];
 
 class UsersRepository {
@@ -75,27 +76,54 @@ class UsersRepository {
   }
 
   /**
-   * Set a new password hash and force a password change on next login,
-   * also revoking any existing session (refresh token).
+   * Atomically update password-related account state. The caller supplies the
+   * surrounding transaction that also writes history and audit data.
    */
-  async setPasswordAndForceChange(id, passwordHash, conn = database.db) {
+  async setPasswordSecurityState(id, data, conn = database.db) {
     await conn('users').where('id', id).update({
-      password_hash: passwordHash,
-      must_change_password: true,
+      password_hash: data.password_hash,
+      password_changed_at: data.password_changed_at,
+      must_change_password: data.must_change_password ? 1 : 0,
       refresh_token_hash: null,
       updated_at: conn.fn.now(),
     });
   }
 
-  /**
-   * Set a new password hash as part of a (voluntary or forced) self-service change.
-   */
-  async setOwnPassword(id, passwordHash, conn = database.db) {
-    await conn('users').where('id', id).update({
+  async findRecentPasswordHashes(userId, limit = 5, conn = database.db) {
+    return conn('password_history')
+      .select('id', 'password_hash', 'created_at')
+      .where('user_id', userId)
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
+      .limit(limit);
+  }
+
+  async insertPasswordHistory(userId, passwordHash, conn = database.db) {
+    const [row] = await conn('password_history').insert({
+      user_id: userId,
       password_hash: passwordHash,
-      must_change_password: false,
-      updated_at: conn.fn.now(),
-    });
+      // Use one timestamp format across SQLite and Postgres so lexical order
+      // remains chronological in both clients.
+      created_at: new Date().toISOString(),
+    }).returning(['id', 'user_id', 'created_at']);
+    return row;
+  }
+
+  async prunePasswordHistory(userId, limit = 5, conn = database.db) {
+    const retained = await conn('password_history')
+      .select('id')
+      .where('user_id', userId)
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
+      .limit(limit);
+
+    const retainedIds = retained.map((row) => row.id);
+    if (retainedIds.length === 0) return 0;
+
+    return conn('password_history')
+      .where('user_id', userId)
+      .whereNotIn('id', retainedIds)
+      .del();
   }
 
   /**
@@ -103,7 +131,10 @@ class UsersRepository {
    * verification. Never expose this method's result to a controller response.
    */
   async findCredentialsById(id, conn = database.db) {
-    return conn('users').select('id', 'password_hash', 'must_change_password').where('id', id).first();
+    return conn('users')
+      .select('id', 'password_hash', 'must_change_password', 'password_changed_at')
+      .where('id', id)
+      .first();
   }
 
   /**

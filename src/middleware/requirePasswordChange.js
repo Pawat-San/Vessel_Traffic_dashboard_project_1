@@ -1,5 +1,7 @@
 const authRepository = require('../modules/auth/auth.repository');
 const { PasswordChangeRequiredError } = require('../utils/errors');
+const { isPasswordExpired } = require('../utils/passwordPolicy');
+const config = require('../config');
 
 // Paths that must stay reachable even while a forced password change is pending.
 const ALLOWED_WHEN_LOCKED = [
@@ -31,8 +33,14 @@ async function requirePasswordChange(req, res, next) {
     }
 
     const freshUser = await authRepository.findById(req.user.id);
-    if (freshUser && freshUser.must_change_password) {
-      return next(new PasswordChangeRequiredError());
+    if (freshUser) {
+      const passwordExpired = isPasswordExpired(freshUser.password_changed_at, config.password.maxAgeDays);
+      if (freshUser.must_change_password || passwordExpired) {
+        return next(new PasswordChangeRequiredError(
+          passwordExpired ? 'Password has expired and must be changed' : undefined,
+          { passwordExpired }
+        ));
+      }
     }
 
     next();

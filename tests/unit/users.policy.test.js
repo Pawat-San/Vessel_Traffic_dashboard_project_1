@@ -1,4 +1,4 @@
-const { canManageUser } = require('../../src/modules/users/users.policy');
+const { canManageUser, canCreateOrResetUser } = require('../../src/modules/users/users.policy');
 
 describe('users.policy canManageUser() -- privilege escalation matrix', () => {
   describe('actor = superadmin', () => {
@@ -51,5 +51,14 @@ describe('users.policy canManageUser() -- privilege escalation matrix', () => {
       expect(canManageUser(actorRole, 'operator', 'admin').allowed).toBe(false);
       expect(canManageUser(actorRole, undefined, 'viewer').allowed).toBe(false);
     });
+  });
+});
+
+describe('users.policy canCreateOrResetUser()', () => {
+  it('allows only superadmin', () => {
+    expect(canCreateOrResetUser('superadmin').allowed).toBe(true);
+    expect(canCreateOrResetUser('admin').allowed).toBe(false);
+    expect(canCreateOrResetUser('operator').allowed).toBe(false);
+    expect(canCreateOrResetUser('viewer').allowed).toBe(false);
   });
 });

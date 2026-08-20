@@ -17,7 +17,7 @@ class AuthRepository {
    */
   async findById(id) {
     return database.db('users')
-      .select('id', 'username', 'display_name', 'role', 'is_active', 'must_change_password')
+      .select('id', 'username', 'display_name', 'role', 'is_active', 'must_change_password', 'password_changed_at')
       .where('id', id)
       .first();
   }
@@ -39,9 +39,28 @@ class AuthRepository {
    * @param {string} passwordHash
    */
   async updatePasswordHash(userId, passwordHash) {
-    return database.db('users')
-      .where('id', userId)
-      .update({ password_hash: passwordHash, updated_at: database.db.fn.now() });
+    return database.db.transaction(async (trx) => {
+      await trx('users')
+        .where('id', userId)
+        .update({ password_hash: passwordHash, updated_at: trx.fn.now() });
+
+      const latest = await trx('password_history')
+        .select('id')
+        .where('user_id', userId)
+        .orderBy('created_at', 'desc')
+        .orderBy('id', 'desc')
+        .first();
+
+      if (latest) {
+        await trx('password_history').where('id', latest.id).update({ password_hash: passwordHash });
+      } else {
+        await trx('password_history').insert({
+          user_id: userId,
+          password_hash: passwordHash,
+          created_at: new Date().toISOString(),
+        });
+      }
+    });
   }
 }
 
