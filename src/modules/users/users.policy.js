@@ -37,4 +37,11 @@ function canManageUser(actorRole, targetCurrentRole, targetNewRole) {
   return { allowed: true };
 }
 
-module.exports = { canManageUser };
+function canCreateOrResetUser(actorRole) {
+  if (actorRole !== 'superadmin') {
+    return { allowed: false, reason: 'Only superadmins can create accounts or reset passwords' };
+  }
+  return { allowed: true };
+}
+
+module.exports = { canManageUser, canCreateOrResetUser };

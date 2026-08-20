@@ -1,8 +1,16 @@
 const crypto = require('crypto');
 const { hashPassword } = require('../../utils/password');
+const { getPasswordPolicyErrors } = require('../../utils/passwordPolicy');
 
 function randomPassword() {
-  return crypto.randomBytes(12).toString('base64url');
+  return `a1!${crypto.randomBytes(12).toString('base64url')}`;
+}
+
+function assertSecureBootstrapPassword(name, password) {
+  const errors = getPasswordPolicyErrors(password);
+  if (errors.length > 0) {
+    throw new Error(`${name} does not meet the password policy: ${errors.map((error) => error.message).join('; ')}`);
+  }
 }
 
 exports.seed = async function seed(knex) {
@@ -21,9 +29,9 @@ exports.seed = async function seed(knex) {
       'SUPERADMIN_USERNAME and SUPERADMIN_PASSWORD environment variables must be set to bootstrap the initial superadmin account.'
     );
   }
-  if (superadminPassword.length < 8) {
-    throw new Error('SUPERADMIN_PASSWORD must be at least 8 characters.');
-  }
+  assertSecureBootstrapPassword('SUPERADMIN_PASSWORD', superadminPassword);
+
+  const passwordChangedAt = new Date().toISOString();
 
   const accounts = [
     {
@@ -33,6 +41,7 @@ exports.seed = async function seed(knex) {
       role: 'superadmin',
       is_active: 1,
       must_change_password: 0,
+      password_changed_at: passwordChangedAt,
     },
   ];
 
@@ -43,6 +52,7 @@ exports.seed = async function seed(knex) {
       const envUsername = process.env[`${role.toUpperCase()}_USERNAME`] || role;
       const envPassword = process.env[`${role.toUpperCase()}_PASSWORD`];
       const password = envPassword || randomPassword();
+      assertSecureBootstrapPassword(`${role.toUpperCase()}_PASSWORD`, password);
 
       if (!envPassword) {
         // eslint-disable-next-line no-console
@@ -59,9 +69,15 @@ exports.seed = async function seed(knex) {
         role,
         is_active: 1,
         must_change_password: envPassword ? 0 : 1,
+        password_changed_at: passwordChangedAt,
       });
     }
   }
 
-  await knex('users').insert(accounts);
+  const inserted = await knex('users').insert(accounts).returning(['id', 'password_hash']);
+  await knex('password_history').insert(inserted.map((account) => ({
+    user_id: account.id,
+    password_hash: account.password_hash,
+    created_at: passwordChangedAt,
+  })));
 };

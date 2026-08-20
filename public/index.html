@@ -468,9 +468,19 @@
               <label class="form-label" for="account-form-username">Username *</label>
               <input class="form-control" type="text" id="account-form-username" required minlength="3" maxlength="50" autocomplete="off">
             </div>
-            <div class="form-group" id="account-form-password-group">
+            <div class="form-group full-width" id="account-form-password-group">
               <label class="form-label" for="account-form-password">Password *</label>
               <input class="form-control" type="password" id="account-form-password" minlength="8" maxlength="100" autocomplete="new-password">
+              <label class="form-label password-confirm-label" for="account-form-password-confirm">Confirm Password *</label>
+              <input class="form-control" type="password" id="account-form-password-confirm" minlength="8" maxlength="100" autocomplete="new-password">
+              <ul class="password-checklist" id="account-password-checklist" aria-live="polite">
+                <li data-rule="length"><span class="password-rule-icon">○</span> 8–100 characters</li>
+                <li data-rule="lowercase"><span class="password-rule-icon">○</span> At least one lowercase letter</li>
+                <li data-rule="number"><span class="password-rule-icon">○</span> At least one number</li>
+                <li data-rule="special"><span class="password-rule-icon">○</span> At least one special character</li>
+                <li data-rule="noWhitespace"><span class="password-rule-icon">○</span> No whitespace</li>
+                <li data-rule="matches"><span class="password-rule-icon">○</span> Passwords match</li>
+              </ul>
             </div>
             <div class="form-group">
               <label class="form-label" for="account-form-display-name">Display Name *</label>
@@ -495,7 +505,7 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" type="button" id="account-form-close-bottom">Cancel</button>
-          <button class="btn btn-primary" type="submit">Save Account</button>
+          <button class="btn btn-primary" type="submit" id="account-form-save-btn">Save Account</button>
         </div>
       </form>
     </div>
@@ -516,11 +526,21 @@
           <div class="form-group">
             <label class="form-label" for="reset-password-new">New Password *</label>
             <input class="form-control" type="password" id="reset-password-new" required minlength="8" maxlength="100" autocomplete="new-password">
+            <label class="form-label password-confirm-label" for="reset-password-confirm">Confirm Password *</label>
+            <input class="form-control" type="password" id="reset-password-confirm" required minlength="8" maxlength="100" autocomplete="new-password">
+            <ul class="password-checklist" id="reset-password-checklist" aria-live="polite">
+              <li data-rule="length"><span class="password-rule-icon">○</span> 8–100 characters</li>
+              <li data-rule="lowercase"><span class="password-rule-icon">○</span> At least one lowercase letter</li>
+              <li data-rule="number"><span class="password-rule-icon">○</span> At least one number</li>
+              <li data-rule="special"><span class="password-rule-icon">○</span> At least one special character</li>
+              <li data-rule="noWhitespace"><span class="password-rule-icon">○</span> No whitespace</li>
+              <li data-rule="matches"><span class="password-rule-icon">○</span> Passwords match</li>
+            </ul>
           </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" type="button" id="reset-password-close-bottom">Cancel</button>
-          <button class="btn btn-primary" type="submit">Reset Password</button>
+          <button class="btn btn-primary" type="submit" id="reset-password-submit-btn">Reset Password</button>
         </div>
       </form>
     </div>
@@ -534,16 +554,26 @@
       </div>
       <form id="force-password-form">
         <div class="modal-body">
-          <p style="margin-bottom: 1rem; color: var(--text-muted);">
+          <p id="force-password-message" style="margin-bottom: 1rem; color: var(--text-muted);">
             Your password must be changed before you can continue.
           </p>
           <div class="form-group">
             <label class="form-label" for="force-password-new">New Password *</label>
             <input class="form-control" type="password" id="force-password-new" required minlength="8" maxlength="100" autocomplete="new-password">
+            <label class="form-label password-confirm-label" for="force-password-confirm">Confirm Password *</label>
+            <input class="form-control" type="password" id="force-password-confirm" required minlength="8" maxlength="100" autocomplete="new-password">
+            <ul class="password-checklist" id="force-password-checklist" aria-live="polite">
+              <li data-rule="length"><span class="password-rule-icon">○</span> 8–100 characters</li>
+              <li data-rule="lowercase"><span class="password-rule-icon">○</span> At least one lowercase letter</li>
+              <li data-rule="number"><span class="password-rule-icon">○</span> At least one number</li>
+              <li data-rule="special"><span class="password-rule-icon">○</span> At least one special character</li>
+              <li data-rule="noWhitespace"><span class="password-rule-icon">○</span> No whitespace</li>
+              <li data-rule="matches"><span class="password-rule-icon">○</span> Passwords match</li>
+            </ul>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-primary" type="submit">Set Password &amp; Continue</button>
+          <button class="btn btn-primary" type="submit" id="force-password-submit-btn">Set Password &amp; Continue</button>
         </div>
       </form>
     </div>

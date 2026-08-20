@@ -30,8 +30,14 @@ class AuthorizationError extends AppError {
 }
 
 class PasswordChangeRequiredError extends AppError {
-  constructor(message = 'Password change required before continuing') {
-    super(message, 403, 'PASSWORD_CHANGE_REQUIRED');
+  constructor(message = 'Password change required before continuing', details = null) {
+    super(message, 403, 'PASSWORD_CHANGE_REQUIRED', details);
+  }
+}
+
+class PasswordRecentlyUsedError extends AppError {
+  constructor(message = 'This password was used recently. Choose a password different from your last 5 passwords.') {
+    super(message, 400, 'PASSWORD_RECENTLY_USED');
   }
 }
 
@@ -59,6 +65,7 @@ module.exports = {
   AuthenticationError,
   AuthorizationError,
   PasswordChangeRequiredError,
+  PasswordRecentlyUsedError,
   NotFoundError,
   ConflictError,
   InternalError,

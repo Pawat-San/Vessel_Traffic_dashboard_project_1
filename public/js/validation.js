@@ -45,7 +45,23 @@ function checkAtdPlausibility(eta, etd, atd) {
   return null;
 }
 
-const validation = { checkAtdPlausibility };
+function checkPasswordRequirements(password, confirmation = '') {
+  const value = typeof password === 'string' ? password : '';
+  return {
+    length: value.length >= 8 && value.length <= 100,
+    lowercase: /[a-z]/.test(value),
+    number: /[0-9]/.test(value),
+    special: /[^A-Za-z0-9\s]/.test(value),
+    noWhitespace: value.length > 0 && !/\s/.test(value),
+    matches: value.length > 0 && value === confirmation,
+  };
+}
+
+function isPasswordChecklistValid(password, confirmation = '') {
+  return Object.values(checkPasswordRequirements(password, confirmation)).every(Boolean);
+}
+
+const validation = { checkAtdPlausibility, checkPasswordRequirements, isPasswordChecklistValid };
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = validation;

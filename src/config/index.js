@@ -6,6 +6,11 @@ dotenv.config();
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 
+function positiveInt(value, fallback) {
+  const parsed = parseInt(value || '', 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 const FALLBACK_SECRETS = {
   JWT_SECRET: 'fallback-jwt-secret-dev',
   JWT_REFRESH_SECRET: 'fallback-jwt-refresh-secret-dev',
@@ -59,6 +64,11 @@ module.exports = {
   rateLimiter: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
     max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+  },
+
+  password: {
+    maxAgeDays: positiveInt(process.env.PASSWORD_MAX_AGE_DAYS, 90),
+    historyLimit: positiveInt(process.env.PASSWORD_HISTORY_LIMIT, 5),
   },
   
   db: {

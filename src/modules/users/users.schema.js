@@ -1,10 +1,17 @@
 const { z } = require('zod');
+const { getPasswordPolicyErrors } = require('../../utils/passwordPolicy');
 
 const ROLES = ['superadmin', 'admin', 'operator', 'viewer'];
 
+const passwordSchema = z.string().superRefine((password, ctx) => {
+  for (const error of getPasswordPolicyErrors(password)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: error.message });
+  }
+});
+
 const createUserSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').max(50).trim(),
-  password: z.string().min(8, 'Password must be at least 8 characters').max(100),
+  password: passwordSchema,
   display_name: z.string().min(1, 'Display name is required').max(100).trim(),
   role: z.enum(ROLES, { errorMap: () => ({ message: `Role must be one of: ${ROLES.join(', ')}` }) }),
 });
@@ -16,12 +23,12 @@ const updateUserSchema = z.object({
 });
 
 const adminResetPasswordSchema = z.object({
-  new_password: z.string().min(8, 'Password must be at least 8 characters').max(100),
+  new_password: passwordSchema,
 });
 
 const selfChangePasswordSchema = z.object({
   current_password: z.string().max(100).optional(),
-  new_password: z.string().min(8, 'Password must be at least 8 characters').max(100),
+  new_password: passwordSchema,
 });
 
 const listUsersQuerySchema = z.object({
@@ -37,4 +44,5 @@ module.exports = {
   adminResetPasswordSchema,
   selfChangePasswordSchema,
   listUsersQuerySchema,
+  passwordSchema,
 };

@@ -53,7 +53,7 @@ paths:
                   type: string
       responses:
         '200':
-          description: Successful login
+          description: Successful login. The user object includes mustChangePassword and passwordExpired flags.
         '401':
           description: Invalid credentials
         '429':
@@ -343,6 +343,105 @@ paths:
         '200':
           description: Records purged
 
+  /users:
+    get:
+      summary: List user accounts (Admin/Superadmin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Safe account records without credential hashes
+        '403':
+          description: Insufficient role or password change required
+    post:
+      summary: Create an account (Superadmin Only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, display_name, role]
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                password:
+                  $ref: '#/components/schemas/SecurePassword'
+                display_name:
+                  type: string
+                  maxLength: 100
+                role:
+                  type: string
+                  enum: [superadmin, admin, operator, viewer]
+      responses:
+        '201':
+          description: Account created and forced password change enabled
+        '400':
+          description: Password policy or request validation failed
+        '403':
+          description: Only Superadmin can create accounts
+
+  /users/me/change-password:
+    post:
+      summary: Change the authenticated user's password
+      description: The new password cannot match any of the user's 5 most recent passwords.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_password]
+              properties:
+                current_password:
+                  type: string
+                  description: Required for a voluntary change; optional for a forced or expired-password change.
+                new_password:
+                  $ref: '#/components/schemas/SecurePassword'
+      responses:
+        '200':
+          description: Password changed; existing refresh token revoked
+        '400':
+          description: Password policy failed or PASSWORD_RECENTLY_USED
+        '401':
+          description: Current password is missing or incorrect
+
+  /users/{id}/reset-password:
+    post:
+      summary: Reset another user's password (Superadmin Only)
+      description: The temporary password cannot match the target user's 5 most recent passwords.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_password]
+              properties:
+                new_password:
+                  $ref: '#/components/schemas/SecurePassword'
+      responses:
+        '200':
+          description: Password reset; forced change enabled and existing refresh token revoked
+        '400':
+          description: Password policy failed or PASSWORD_RECENTLY_USED
+        '403':
+          description: Only Superadmin can reset another user's password
+
 components:
   securitySchemes:
     bearerAuth:
@@ -351,6 +450,14 @@ components:
       bearerFormat: JWT
 
   schemas:
+    SecurePassword:
+      type: string
+      minLength: 8
+      maxLength: 100
+      pattern: '^(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9\s])\S{8,100}$'
+      writeOnly: true
+      description: Must contain a lowercase letter, number, and special character, with no whitespace. It must also differ from the user's 5 most recent passwords.
+
     TerminalInput:
       type: object
       required:

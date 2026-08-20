@@ -14,6 +14,7 @@ describe('Users API integration -- RBAC matrix', () => {
   let operatorToken;
   let viewerToken;
   let targetSuperadmin;
+  let targetOperator;
 
   beforeAll(async () => {
     await setupTestDb();
@@ -23,6 +24,7 @@ describe('Users API integration -- RBAC matrix', () => {
     await createUser({ username: 'api-operator', password: 'password12345', role: 'operator' });
     await createUser({ username: 'api-viewer', password: 'password12345', role: 'viewer' });
     targetSuperadmin = await createUser({ username: 'api-superadmin-2', password: 'password12345', role: 'superadmin' });
+    targetOperator = await createUser({ username: 'api-operator-2', password: 'password12345', role: 'operator' });
 
     superadminToken = await loginAs('api-superadmin', 'password12345');
     adminToken = await loginAs('api-admin', 'password12345');
@@ -46,7 +48,7 @@ describe('Users API integration -- RBAC matrix', () => {
     const res = await request(app)
       .post('/api/users')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ username: 'sneaky-admin-created', password: 'password12345', display_name: 'Sneaky', role: 'superadmin' });
+      .send({ username: 'sneaky-admin-created', password: 'Password1!', display_name: 'Sneaky', role: 'superadmin' });
 
     expect(res.status).toBe(403);
   });
@@ -60,26 +62,25 @@ describe('Users API integration -- RBAC matrix', () => {
     expect(res.status).toBe(403);
   });
 
-  it('admin cannot reset a superadmin password', async () => {
+  it('admin cannot reset any other account password', async () => {
     const res = await request(app)
-      .post(`/api/users/${targetSuperadmin.id}/reset-password`)
+      .post(`/api/users/${targetOperator.id}/reset-password`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ new_password: 'newpassword12345' });
+      .send({ new_password: 'Newpassword1!' });
 
     expect(res.status).toBe(403);
   });
 
-  it('admin CAN create and edit an operator account', async () => {
+  it('admin cannot create an account but can still edit an ordinary account', async () => {
     const createRes = await request(app)
       .post('/api/users')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ username: 'admin-created-op', password: 'password12345', display_name: 'Op', role: 'operator' });
+      .send({ username: 'admin-created-op', password: 'Password1!', display_name: 'Op', role: 'operator' });
 
-    expect(createRes.status).toBe(201);
-    expect(createRes.body.data).not.toHaveProperty('password_hash');
+    expect(createRes.status).toBe(403);
 
     const editRes = await request(app)
-      .put(`/api/users/${createRes.body.data.id}`)
+      .put(`/api/users/${targetOperator.id}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ role: 'viewer' });
 
@@ -91,14 +92,14 @@ describe('Users API integration -- RBAC matrix', () => {
     const createRes = await request(app)
       .post('/api/users')
       .set('Authorization', `Bearer ${superadminToken}`)
-      .send({ username: 'superadmin-created', password: 'password12345', display_name: 'SA', role: 'superadmin' });
+      .send({ username: 'superadmin-created', password: 'Password1!', display_name: 'SA', role: 'superadmin' });
 
     expect(createRes.status).toBe(201);
 
     const resetRes = await request(app)
       .post(`/api/users/${createRes.body.data.id}/reset-password`)
       .set('Authorization', `Bearer ${superadminToken}`)
-      .send({ new_password: 'anotherpassword123' });
+      .send({ new_password: 'Anotherpassword2!' });
 
     expect(resetRes.status).toBe(200);
   });
