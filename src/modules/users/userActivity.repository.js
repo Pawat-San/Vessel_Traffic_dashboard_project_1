@@ -6,6 +6,25 @@ const ACTIVITY_USER_COLUMNS = [
 ];
 
 class UserActivityRepository {
+  async upsertDailyActivity(user, occurredAt, conn = database.db) {
+    const activityDate = occurredAt.slice(0, 10);
+    await conn('user_activity_daily')
+      .insert({
+        user_id: user.id,
+        activity_date: activityDate,
+        role: user.role,
+        request_count: 1,
+        first_activity_at: occurredAt,
+        last_activity_at: occurredAt,
+      })
+      .onConflict(['user_id', 'activity_date'])
+      .merge({
+        role: user.role,
+        request_count: conn.raw('?? + 1', ['request_count']),
+        last_activity_at: occurredAt,
+      });
+  }
+
   async insertEvent(event, conn = database.db) {
     const [row] = await conn('user_activity_events').insert(event).returning([
       'id', 'user_id', 'role', 'action', 'http_method', 'route_template',
@@ -22,8 +41,10 @@ class UserActivityRepository {
       last_login_at: occurredAt,
       last_activity_at: occurredAt,
       login_count: conn.raw('COALESCE(??, 0) + 1', ['login_count']),
+      last_user_agent_hash: metadata.user_agent_hash || null,
       updated_at: conn.fn.now(),
     });
+    await this.upsertDailyActivity(user, occurredAt, conn);
     return this.insertEvent({
       user_id: user.id,
       role: user.role,
@@ -47,6 +68,29 @@ class UserActivityRepository {
       .where((query) => query.whereNull('last_activity_at').orWhere('last_activity_at', '<', occurredAt))
       .update({ last_activity_at: occurredAt });
 
+    await this.upsertDailyActivity(user, occurredAt, conn);
+
+    if (metadata.is_heartbeat) {
+      const claimed = await conn('users')
+        .where('id', user.id)
+        .where((query) => query
+          .whereNull('last_activity_heartbeat_at')
+          .orWhere('last_activity_heartbeat_at', '<=', metadata.heartbeat_cutoff))
+        .update({ last_activity_heartbeat_at: occurredAt });
+      if (claimed === 0) return null;
+    }
+
+    let userAgent = null;
+    if (metadata.user_agent && metadata.user_agent_hash) {
+      const deviceChanged = await conn('users')
+        .where('id', user.id)
+        .where((query) => query
+          .whereNull('last_user_agent_hash')
+          .orWhereNot('last_user_agent_hash', metadata.user_agent_hash))
+        .update({ last_user_agent_hash: metadata.user_agent_hash });
+      if (deviceChanged > 0) userAgent = metadata.user_agent;
+    }
+
     return this.insertEvent({
       user_id: user.id,
       role: user.role,
@@ -55,7 +99,7 @@ class UserActivityRepository {
       route_template: metadata.route_template,
       response_status: metadata.response_status,
       ip_address: metadata.ip_address || null,
-      user_agent: metadata.user_agent || null,
+      user_agent: userAgent,
       target_user_id: metadata.target_user_id || null,
       target_username_snapshot: metadata.target_username_snapshot || null,
       target_display_name_snapshot: metadata.target_display_name_snapshot || null,
@@ -103,6 +147,10 @@ class UserActivityRepository {
 
   async purgeOlderThan(cutoff, conn = database.db) {
     return conn('user_activity_events').where('occurred_at', '<', cutoff).del();
+  }
+
+  async purgeDailyOlderThan(cutoffDate, conn = database.db) {
+    return conn('user_activity_daily').where('activity_date', '<', cutoffDate).del();
   }
 }
 

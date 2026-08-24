@@ -203,7 +203,7 @@ Implementation approach:
 1. Add a route/action registry for ordinary read requests.
 2. Let controllers or services set explicit activity metadata for domain mutations.
 3. For account-management mutations, include `target_user_id` and target snapshots.
-4. Record exactly one activity event per successful request.
+4. Record exactly one raw activity event per meaningful successful request; coalesce automatic dashboard polling into 15-minute heartbeats.
 5. Suppress the generic route-derived event when explicit domain metadata exists.
 6. Retain `http_method` and `route_template` as technical detail fields for investigation.
 
@@ -379,7 +379,7 @@ Recommended primary row format:
 - Historical `GET_API_*` codes receive readable labels.
 - Unknown codes use a safe readable fallback.
 - The API never returns credentials, tokens, cookies, or request bodies.
-- One successful request creates exactly one activity event.
+- One meaningful successful request creates exactly one raw activity event; dashboard polling creates no more than one heartbeat per 15 minutes.
 
 ### Table Behavior
 
@@ -418,7 +418,7 @@ Recommended primary row format:
 - Account action buttons never overlap account-data columns.
 - Raw `GET_API_*` values are not displayed as primary UI text.
 - Existing historical activity receives readable labels.
-- Each successful request produces no more than one activity event.
+- Each meaningful successful request produces no more than one raw activity event, and polling is heartbeat-throttled.
 - Passwords, password hashes, tokens, cookies, and request bodies never enter activity storage or responses.
 - All Manage Accounts and activity endpoints remain Superadmin-only.
 - Automated tests and responsive UI verification pass before deployment.

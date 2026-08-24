@@ -3,6 +3,7 @@ const { setupTestDb, teardownTestDb } = require('../helpers/setup');
 const { createUser } = require('../helpers/factory');
 const database = require('../../src/database/knex');
 const app = require('../../src/app');
+const userActivityService = require('../../src/modules/users/userActivity.service');
 
 async function login(username, password = 'password1!') {
   return request(app).post('/api/auth/login').set('User-Agent', 'activity-test-agent').send({ username, password });
@@ -15,6 +16,15 @@ async function waitForEvent(criteria) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   return undefined;
+}
+
+async function waitForEventCount(criteria, expected) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const row = await database.db('user_activity_events').where(criteria).count({ total: '*' }).first();
+    if (Number(row.total) === expected) return expected;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return -1;
 }
 
 describe('User activity API integration', () => {
@@ -69,17 +79,93 @@ describe('User activity API integration', () => {
     expect(after.last_login_at).toBe(before.last_login_at);
   });
 
-  it('records a successful authenticated request for Viewer', async () => {
+  it('coalesces automatic dashboard polling into one 15-minute heartbeat', async () => {
     const viewerLogin = await login(viewer.username);
+    const token = viewerLogin.body.data.accessToken;
     const response = await request(app)
       .get('/api/vessels')
-      .set('Authorization', `Bearer ${viewerLogin.body.data.accessToken}`);
+      .set('Authorization', `Bearer ${token}`);
     expect(response.status).toBe(200);
+    await request(app).get('/api/vessels/summary').set('Authorization', `Bearer ${token}`);
+    await request(app).get('/api/vessels').set('Authorization', `Bearer ${token}`);
 
     const event = await waitForEvent({ user_id: viewer.id, action: 'DASHBOARD_VIEWED' });
     expect(event).toBeDefined();
     expect(event.role).toBe('viewer');
     expect(event.response_status).toBe(200);
+    expect(await waitForEventCount({ user_id: viewer.id, action: 'DASHBOARD_VIEWED' }, 1)).toBe(1);
+
+    const stored = await database.db('users').where('id', viewer.id).first();
+    expect(stored.last_activity_at).toBeTruthy();
+    expect(stored.last_activity_heartbeat_at).toBeTruthy();
+
+    await database.db('users').where('id', viewer.id).update({
+      last_activity_heartbeat_at: new Date(Date.now() - 16 * 60 * 1000).toISOString(),
+    });
+    await request(app).get('/api/vessels/summary').set('Authorization', `Bearer ${token}`);
+    expect(await waitForEventCount({ user_id: viewer.id, action: 'DASHBOARD_VIEWED' }, 2)).toBe(2);
+  });
+
+  it('stores User-Agent only on login or when the device changes', async () => {
+    const loginEvent = await database.db('user_activity_events')
+      .where({ user_id: viewer.id, action: 'AUTH_LOGIN' })
+      .first();
+    expect(loginEvent.user_agent).toBe('activity-test-agent');
+
+    const viewerRow = await database.db('users').where('id', viewer.id).first();
+    const viewerLogin = await login(viewer.username);
+    const token = viewerLogin.body.data.accessToken;
+    expect(viewerRow.last_user_agent_hash).toBeTruthy();
+
+    await request(app)
+      .get('/api/terminals')
+      .set('Authorization', `Bearer ${token}`)
+      .set('User-Agent', 'changed-device-agent');
+    await request(app)
+      .get('/api/terminals')
+      .set('Authorization', `Bearer ${token}`)
+      .set('User-Agent', 'changed-device-agent');
+    expect(await waitForEventCount({ user_id: viewer.id, action: 'TERMINALS_VIEWED' }, 2)).toBe(2);
+
+    const terminalEvents = await database.db('user_activity_events')
+      .where({ user_id: viewer.id, action: 'TERMINALS_VIEWED' })
+      .orderBy('id', 'asc');
+    expect(terminalEvents[0].user_agent).toBe('changed-device-agent');
+    expect(terminalEvents[1].user_agent).toBeNull();
+  });
+
+  it('aggregates successful requests into one UTC daily row per user', async () => {
+    const dailyRows = await database.db('user_activity_daily').where('user_id', viewer.id);
+    expect(dailyRows).toHaveLength(1);
+    expect(dailyRows[0].activity_date).toBe(new Date().toISOString().slice(0, 10));
+    expect(dailyRows[0].request_count).toBeGreaterThanOrEqual(7);
+    expect(dailyRows[0].first_activity_at).toBeTruthy();
+    expect(dailyRows[0].last_activity_at).toBeTruthy();
+  });
+
+  it('purges raw events and daily summaries with separate retention windows', async () => {
+    const oldDate = '2020-01-01';
+    await database.db('user_activity_events').insert({
+      user_id: operator.id,
+      role: operator.role,
+      action: 'DASHBOARD_VIEWED',
+      http_method: 'GET',
+      route_template: '/api/vessels',
+      response_status: 200,
+      occurred_at: `${oldDate}T00:00:00.000Z`,
+    });
+    await database.db('user_activity_daily').insert({
+      user_id: operator.id,
+      activity_date: oldDate,
+      role: operator.role,
+      request_count: 1,
+      first_activity_at: `${oldDate}T00:00:00.000Z`,
+      last_activity_at: `${oldDate}T00:00:00.000Z`,
+    });
+
+    expect(await userActivityService.purgeExpiredEvents(90)).toBeGreaterThanOrEqual(1);
+    expect(await userActivityService.purgeExpiredDailySummaries(730)).toBe(1);
+    expect(await database.db('user_activity_daily').where({ user_id: operator.id, activity_date: oldDate }).first()).toBeUndefined();
   });
 
   it('records one readable account action with separate actor and target', async () => {

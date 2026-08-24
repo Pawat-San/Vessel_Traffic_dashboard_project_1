@@ -48,9 +48,10 @@ function startArchiveJobs() {
   // 3. Apply the configured activity-event retention policy every 24 hours.
   setInterval(async () => {
     try {
-      const count = await userActivityService.purgeExpiredEvents(config.activity.retentionDays);
-      if (count > 0) {
-        logger.info(`Scheduled user activity cleanup removed ${count} event(s).`);
+      const eventCount = await userActivityService.purgeExpiredEvents(config.activity.retentionDays);
+      const dailyCount = await userActivityService.purgeExpiredDailySummaries(config.activity.dailyRetentionDays);
+      if (eventCount > 0 || dailyCount > 0) {
+        logger.info(`Scheduled user activity cleanup removed ${eventCount} event(s) and ${dailyCount} daily summary row(s).`);
       }
     } catch (error) {
       logger.error('Scheduled user activity cleanup failed', { error: error.message });
@@ -71,9 +72,14 @@ function startArchiveJobs() {
     })
     .catch((err) => logger.error('Startup archive purge failed', { error: err.message }));
 
-  userActivityService.purgeExpiredEvents(config.activity.retentionDays)
-    .then((count) => {
-      if (count > 0) logger.info(`Startup user activity cleanup removed ${count} event(s).`);
+  Promise.all([
+    userActivityService.purgeExpiredEvents(config.activity.retentionDays),
+    userActivityService.purgeExpiredDailySummaries(config.activity.dailyRetentionDays),
+  ])
+    .then(([eventCount, dailyCount]) => {
+      if (eventCount > 0 || dailyCount > 0) {
+        logger.info(`Startup user activity cleanup removed ${eventCount} event(s) and ${dailyCount} daily summary row(s).`);
+      }
     })
     .catch((err) => logger.error('Startup user activity cleanup failed', { error: err.message }));
 }
