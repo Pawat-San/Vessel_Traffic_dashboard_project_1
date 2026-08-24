@@ -2,6 +2,7 @@ const vesselService = require('../modules/vessel/vessel.service');
 const archiveService = require('../modules/archive/archive.service');
 const logger = require('../utils/logger');
 const config = require('../config');
+const userActivityService = require('../modules/users/userActivity.service');
 
 /**
  * Initializes and starts the background cleaning and archiving tasks
@@ -44,6 +45,18 @@ function startArchiveJobs() {
     }
   }, PURGE_INTERVAL_MS);
 
+  // 3. Apply the configured activity-event retention policy every 24 hours.
+  setInterval(async () => {
+    try {
+      const count = await userActivityService.purgeExpiredEvents(config.activity.retentionDays);
+      if (count > 0) {
+        logger.info(`Scheduled user activity cleanup removed ${count} event(s).`);
+      }
+    } catch (error) {
+      logger.error('Scheduled user activity cleanup failed', { error: error.message });
+    }
+  }, PURGE_INTERVAL_MS);
+
   // Execute once immediately on server startup
   logger.info('Executing initial startup cleanup tasks...');
   vesselService.archiveExpiredVessels(24)
@@ -57,6 +70,12 @@ function startArchiveJobs() {
       if (count > 0) logger.info(`Startup archive purge completed: ${count} record(s) purged.`);
     })
     .catch((err) => logger.error('Startup archive purge failed', { error: err.message }));
+
+  userActivityService.purgeExpiredEvents(config.activity.retentionDays)
+    .then((count) => {
+      if (count > 0) logger.info(`Startup user activity cleanup removed ${count} event(s).`);
+    })
+    .catch((err) => logger.error('Startup user activity cleanup failed', { error: err.message }));
 }
 
 module.exports = { startArchiveJobs };

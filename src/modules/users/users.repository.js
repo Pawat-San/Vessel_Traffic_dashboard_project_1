@@ -2,7 +2,7 @@ const database = require('../../database/knex');
 
 const SAFE_USER_COLUMNS = [
   'id', 'username', 'display_name', 'role', 'is_active', 'must_change_password',
-  'created_at', 'updated_at',
+  'last_login_at', 'last_activity_at', 'login_count', 'created_at', 'updated_at',
 ];
 
 class UsersRepository {
@@ -14,6 +14,26 @@ class UsersRepository {
       let query = database.db('users');
       if (filters.role) {
         query = query.where('role', filters.role);
+      }
+      if (filters.search) {
+        const escaped = filters.search.toLowerCase()
+          .replace(/!/g, '!!')
+          .replace(/%/g, '!%')
+          .replace(/_/g, '!_');
+        const pattern = `%${escaped}%`;
+        query = query.where((builder) => builder
+          .whereRaw("LOWER(??) LIKE ? ESCAPE '!'", ['username', pattern])
+          .orWhereRaw("LOWER(??) LIKE ? ESCAPE '!'", ['display_name', pattern]));
+      }
+      if (filters.activityStatus === 'never-login') {
+        query = query.whereNull('last_login_at');
+      } else if (filters.activityStatus === 'active-now') {
+        query = query.where('is_active', 1).where('last_activity_at', '>=', filters.activeNowCutoff);
+      } else if (filters.activityStatus === 'active-30d') {
+        query = query.where('is_active', 1).where('last_activity_at', '>=', filters.active30DayCutoff);
+      } else if (filters.activityStatus === 'inactive-30d') {
+        query = query.where('is_active', 1).whereNotNull('last_login_at')
+          .where((builder) => builder.whereNull('last_activity_at').orWhere('last_activity_at', '<=', filters.active30DayCutoff));
       }
       return query;
     };

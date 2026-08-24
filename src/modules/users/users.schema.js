@@ -35,7 +35,23 @@ const listUsersQuerySchema = z.object({
   page: z.string().regex(/^\d+$/).transform(Number).optional(),
   limit: z.string().regex(/^\d+$/).transform(Number).optional(),
   role: z.enum(ROLES).optional(),
+  activityStatus: z.enum(['active-now', 'active-30d', 'inactive-30d', 'never-login']).optional(),
+  search: z.string().trim().min(1).max(100).optional(),
 });
+
+const activityEventsQuerySchema = z.object({
+  page: z.string().regex(/^\d+$/).transform(Number).optional(),
+  limit: z.string().regex(/^\d+$/).transform(Number).optional(),
+  userId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  targetUserId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  role: z.enum(ROLES).optional(),
+  action: z.string().min(1).max(120).optional(),
+  startDate: z.string().datetime({ offset: true }).optional(),
+  endDate: z.string().datetime({ offset: true }).optional(),
+}).refine(
+  (value) => !value.startDate || !value.endDate || new Date(value.startDate) <= new Date(value.endDate),
+  { message: 'startDate must be before or equal to endDate', path: ['startDate'] }
+);
 
 module.exports = {
   ROLES,
@@ -44,5 +60,6 @@ module.exports = {
   adminResetPasswordSchema,
   selfChangePasswordSchema,
   listUsersQuerySchema,
+  activityEventsQuerySchema,
   passwordSchema,
 };

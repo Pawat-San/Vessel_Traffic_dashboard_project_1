@@ -6,6 +6,7 @@ const { hashPassword, verifyPassword, isLegacyHash } = require('../../utils/pass
 const { isPasswordExpired } = require('../../utils/passwordPolicy');
 const { AuthenticationError, PasswordChangeRequiredError } = require('../../utils/errors');
 const logger = require('../../utils/logger');
+const userActivityService = require('../users/userActivity.service');
 
 class AuthService {
   /**
@@ -20,7 +21,7 @@ class AuthService {
   /**
    * Authenticate a user by username and password
    */
-  async login(username, password) {
+  async login(username, password, metadata = {}) {
     const user = await authRepository.findByUsername(username);
     if (!user) {
       logger.warn(`Failed login attempt for non-existent or inactive user: ${username}`);
@@ -63,7 +64,10 @@ class AuthService {
 
     // Hash and store the refresh token
     const tokenHash = this.hashToken(refreshToken);
-    await authRepository.updateRefreshToken(user.id, tokenHash);
+    await userActivityService.recordSuccessfulLogin(user, {
+      ...metadata,
+      occurred_at: new Date().toISOString(),
+    }, tokenHash);
 
     logger.info(`User successfully logged in: ${user.username}`, { userId: user.id });
 
@@ -84,7 +88,7 @@ class AuthService {
   /**
    * Generate a new access token using a valid refresh token
    */
-  async refresh(refreshToken) {
+  async refresh(refreshToken, metadata = {}) {
     try {
       // 1. Verify token signature and expiration
       const decoded = jwt.verify(refreshToken, config.jwt.refreshSecret);
@@ -125,6 +129,16 @@ class AuthService {
       );
 
       logger.info(`Access token refreshed for user: ${user.username}`, { userId: user.id });
+
+      await userActivityService.recordRequestActivity(user, {
+        action: 'AUTH_REFRESH',
+        http_method: 'POST',
+        route_template: '/api/auth/refresh',
+        response_status: 200,
+        ip_address: metadata.ip_address || null,
+        user_agent: metadata.user_agent || null,
+        occurred_at: new Date().toISOString(),
+      });
 
       return { accessToken };
     } catch (error) {

@@ -9,6 +9,8 @@ const {
   updateUserSchema,
   adminResetPasswordSchema,
   selfChangePasswordSchema,
+  listUsersQuerySchema,
+  activityEventsQuerySchema,
 } = require('./users.schema');
 
 const router = express.Router();
@@ -23,12 +25,16 @@ router.post('/me/change-password', validate.body(selfChangePasswordSchema), user
 // Everything below is blocked until a forced password change is completed.
 router.use(requirePasswordChange);
 
-// Account management -> Admin or Superadmin only
-router.get('/', authorize(['admin', 'superadmin']), usersController.list);
-router.get('/:id', authorize(['admin', 'superadmin']), usersController.getById);
+// Activity reporting and all Account Management are Superadmin-only.
+// Fixed paths must remain above /:id so Express does not treat them as IDs.
+router.get('/activity-summary', authorize(['superadmin']), usersController.activitySummary);
+router.get('/activity-events', authorize(['superadmin']), validate.query(activityEventsQuerySchema), usersController.activityEvents);
+router.get('/:id/activity-events', authorize(['superadmin']), validate.query(activityEventsQuerySchema), usersController.activityEvents);
+router.get('/', authorize(['superadmin']), validate.query(listUsersQuerySchema), usersController.list);
+router.get('/:id', authorize(['superadmin']), usersController.getById);
 router.post('/', authorize(['superadmin']), validate.body(createUserSchema), usersController.create);
-router.put('/:id', authorize(['admin', 'superadmin']), validate.body(updateUserSchema), usersController.update);
-router.delete('/:id', authorize(['admin', 'superadmin']), usersController.deactivate);
+router.put('/:id', authorize(['superadmin']), validate.body(updateUserSchema), usersController.update);
+router.delete('/:id', authorize(['superadmin']), usersController.deactivate);
 router.post('/:id/reset-password', authorize(['superadmin']), validate.body(adminResetPasswordSchema), usersController.resetPassword);
 
 module.exports = router;
