@@ -115,11 +115,21 @@ describe('UsersService Unit Tests', () => {
     });
 
     it('prevents an actor from changing their own role', async () => {
-      const admin = await createUser({ username: 'admin4', role: 'admin' });
+      const superadmin = await createUser({ username: 'admin4', role: 'superadmin' });
+      await createUser({ username: 'admin4-backup', role: 'superadmin' });
 
       await expect(
-        usersService.updateUser(admin, admin.id, { role: 'operator' }, '127.0.0.1')
+        usersService.updateUser(superadmin, superadmin.id, { role: 'operator' }, '127.0.0.1')
       ).rejects.toThrow(ConflictError);
+    });
+
+    it('rejects an admin editing an ordinary account', async () => {
+      const admin = await createUser({ username: 'admin-ordinary-denied', role: 'admin' });
+      const operator = await createUser({ username: 'ordinary-denied', role: 'operator' });
+
+      await expect(
+        usersService.updateUser(admin, operator.id, { display_name: 'Denied' }, '127.0.0.1')
+      ).rejects.toThrow(AuthorizationError);
     });
 
     it('prevents the last remaining active superadmin from deactivating themselves', async () => {

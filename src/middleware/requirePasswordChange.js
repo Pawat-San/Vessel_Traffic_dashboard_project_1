@@ -19,7 +19,7 @@ function isAllowedWhenLocked(req) {
  * Blocks access to everything except a small allowlist of routes until the
  * authenticated user has cleared a forced password change. Re-reads the flag
  * from the database on every request (not from the JWT payload) since an
- * admin-initiated reset can happen at any point during an already-issued
+ * Superadmin-initiated reset can happen at any point during an already-issued
  * access token's lifetime.
  */
 async function requirePasswordChange(req, res, next) {

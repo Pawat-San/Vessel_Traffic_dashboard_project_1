@@ -8,7 +8,10 @@ class AuthController {
   async login(req, res, next) {
     try {
       const { username, password } = req.body;
-      const result = await authService.login(username, password);
+      const result = await authService.login(username, password, {
+        ip_address: req.ip,
+        user_agent: req.get('user-agent') || null,
+      });
       
       // We can also set refresh token in HttpOnly cookies if desired for extra security,
       // but to match the frontend spec we will return it in the JSON body.
@@ -24,7 +27,10 @@ class AuthController {
   async refresh(req, res, next) {
     try {
       const { refreshToken } = req.body;
-      const result = await authService.refresh(refreshToken);
+      const result = await authService.refresh(refreshToken, {
+        ip_address: req.ip,
+        user_agent: req.get('user-agent') || null,
+      });
       res.status(200).json(success(result));
     } catch (error) {
       next(error);

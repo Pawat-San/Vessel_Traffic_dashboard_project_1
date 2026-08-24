@@ -53,6 +53,8 @@ const elements = {
   adminToolsContainer: document.getElementById('admin-tools-container'),
   accountsToolsContainer: document.getElementById('accounts-tools-container'),
   accountsTableBody: document.getElementById('accounts-table-body'),
+  activityRoleSummaryBody: document.getElementById('activity-role-summary-body'),
+  activityEventsBody: document.getElementById('activity-events-body'),
   accountFormModalTitle: document.getElementById('account-form-modal-title'),
   accountForm: document.getElementById('account-form'),
   accountFormPasswordGroup: document.getElementById('account-form-password-group'),
@@ -66,6 +68,7 @@ const elements = {
 let editingVesselId = null;
 // Active editing account ID (null = create mode)
 let editingAccountId = null;
+let accountListRequestSequence = 0;
 // Tracks unsaved changes in the vessel form, so closing the modal can prompt
 // for confirmation instead of silently discarding in-progress edits.
 let vesselFormDirty = false;
@@ -182,7 +185,7 @@ function showForcedPasswordChangeModal() {
 
 /**
  * Global hook invoked by api.js whenever ANY API call returns
- * PASSWORD_CHANGE_REQUIRED (e.g. an admin reset this user's password
+ * PASSWORD_CHANGE_REQUIRED (e.g. a Superadmin reset this user's password
  * mid-session), so the block applies immediately regardless of which part of
  * the app triggered the request.
  */
@@ -274,9 +277,9 @@ function applyRoleVisibility() {
     elements.adminToolsContainer.style.display = isAdmin ? 'flex' : 'none';
   }
 
-  // Account management panel (admin + superadmin)
+  // Account Management and all user-activity reporting are Superadmin-only.
   if (elements.accountsToolsContainer) {
-    elements.accountsToolsContainer.style.display = (isAdmin || isSuperadmin) ? 'flex' : 'none';
+    elements.accountsToolsContainer.style.display = isSuperadmin ? 'flex' : 'none';
   }
 
   // Only a superadmin can grant the superadmin role
@@ -309,40 +312,120 @@ async function fetchTerminals() {
 /**
  * Fetch accounts list and render the account management table
  */
+async function fetchAccountList() {
+  const requestSequence = ++accountListRequestSequence;
+  const role = document.getElementById('account-role-filter')?.value || '';
+  const activityStatus = document.getElementById('account-activity-filter')?.value || '';
+  const search = document.getElementById('account-search-filter')?.value.trim() || '';
+  const response = await window.api.get('/users', { limit: 100, role, activityStatus, search });
+  if (requestSequence !== accountListRequestSequence) return;
+  renderAccountsTable(response.data);
+}
+
+async function fetchActivitySummary() {
+  const response = await window.api.get('/users/activity-summary');
+  renderActivitySummary(response.data);
+}
+
+async function fetchActivityEvents() {
+  const role = document.getElementById('event-role-filter')?.value || '';
+  const action = document.getElementById('event-action-filter')?.value || '';
+  const response = await window.api.get('/users/activity-events', { limit: 50, role, action });
+  renderActivityEvents(response.data);
+}
+
 async function fetchAccounts() {
   try {
-    const res = await window.api.get('/users');
-    renderAccountsTable(res.data);
+    await Promise.all([fetchAccountList(), fetchActivitySummary(), fetchActivityEvents()]);
   } catch (err) {
-    const msg = err.error ? err.error.message : 'Failed to load accounts';
+    const msg = err.error ? err.error.message : 'Failed to load Account Management';
     window.components.showToast(msg, 'error');
   }
 }
 
+function accountUsageStatus(account) {
+  if (!account.is_active) return { label: 'DEACTIVATED', className: 'deactivated' };
+  if (!account.last_login_at) return { label: 'NEVER LOGGED IN', className: 'never' };
+  const activityTime = account.last_activity_at ? new Date(account.last_activity_at).getTime() : NaN;
+  const age = Date.now() - activityTime;
+  if (Number.isFinite(activityTime) && age >= 0 && age < 15 * 60 * 1000) {
+    return { label: 'ACTIVE NOW', className: 'active-now' };
+  }
+  if (Number.isFinite(activityTime) && age >= 0 && age < 30 * 24 * 60 * 60 * 1000) {
+    return { label: 'ACTIVE 30D', className: 'active-30d' };
+  }
+  return { label: 'INACTIVE 30D+', className: 'inactive' };
+}
+
+function renderActivitySummary(summary) {
+  const setValue = (id, value) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = String(value ?? 0);
+  };
+  setValue('activity-total-accounts', summary.totalAccounts);
+  setValue('activity-active-now', summary.activeNow);
+  setValue('activity-used-30d', summary.actuallyUsedIn30Days);
+  setValue('activity-inactive-30d', summary.inactiveOver30Days);
+  setValue('activity-never-login', summary.neverLoggedIn);
+  setValue('activity-deactivated', summary.deactivated);
+
+  const esc = window.utils.esc;
+  const roles = ['superadmin', 'admin', 'operator', 'viewer'];
+  elements.activityRoleSummaryBody.innerHTML = roles.map((role) => {
+    const item = summary.byRole[role] || {};
+    return `<tr class="fids-row">
+      <td class="fids-cell"><span class="role ${esc(role)}">${esc(role)}</span></td>
+      <td class="fids-cell">${item.totalAccounts || 0}</td><td class="fids-cell">${item.enabledAccounts || 0}</td>
+      <td class="fids-cell">${item.everLoggedIn || 0}</td><td class="fids-cell">${item.activeNow || 0}</td>
+      <td class="fids-cell">${item.actuallyUsedIn30Days || 0}</td><td class="fids-cell">${item.inactiveOver30Days || 0}</td>
+      <td class="fids-cell">${item.neverLoggedIn || 0}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderActivityEvents(events) {
+  const esc = window.utils.esc;
+  if (!events || events.length === 0) {
+    elements.activityEventsBody.innerHTML = '<tr><td colspan="7" class="fids-cell activity-empty">No activity events found.</td></tr>';
+    return;
+  }
+  elements.activityEventsBody.innerHTML = events.map((event) => {
+    const actorName = event.username || `User #${event.user_id}`;
+    const actorDisplay = event.display_name && event.display_name !== actorName ? event.display_name : '';
+    const targetName = event.target && event.target.username ? event.target.username : '';
+    const targetDisplay = event.target && event.target.display_name && event.target.display_name !== targetName
+      ? event.target.display_name
+      : '';
+    return `<tr class="fids-row">
+      <td class="fids-cell">${esc(window.formatters.formatDateTime(event.occurred_at))}</td>
+      <td class="fids-cell"><span class="activity-person-primary">${esc(actorName)}</span>${actorDisplay ? `<span class="activity-person-secondary">${esc(actorDisplay)}</span>` : ''}</td>
+      <td class="fids-cell"><span class="role ${esc(event.role)}">${esc(event.role)}</span></td>
+      <td class="fids-cell activity-action">${esc(event.action_label || 'Activity')}</td>
+      <td class="fids-cell">${targetName ? `<span class="activity-person-primary">${esc(targetName)}</span>${targetDisplay ? `<span class="activity-person-secondary">${esc(targetDisplay)}</span>` : ''}` : '—'}</td>
+      <td class="fids-cell"><span class="activity-result success">Success (${event.response_status})</span></td>
+      <td class="fids-cell"><details class="activity-details"><summary aria-label="Show technical activity details">View</summary><div><strong>Method:</strong> ${esc(event.http_method)}<br><strong>Route:</strong> ${esc(event.route_template)}<br><strong>IP:</strong> ${esc(event.ip_address || '-')}</div></details></td>
+    </tr>`;
+  }).join('');
+}
+
 /**
- * Render the account management table. Superadmin rows are visible but
- * immutable to Admin actors -- their action buttons are disabled, and the
- * server independently rejects any attempt to mutate them regardless of the
- * UI state here.
+ * Render the Superadmin-only account management table with usage status.
  */
 function renderAccountsTable(accounts) {
   const esc = window.utils.esc;
   const actor = window.api.getUser();
-  const actorIsSuperadmin = actor.role === 'superadmin';
 
   if (!accounts || accounts.length === 0) {
     elements.accountsTableBody.innerHTML = `
-      <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">No accounts found.</td></tr>
+      <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">No accounts found.</td></tr>
     `;
     return;
   }
 
   let html = '';
   accounts.forEach((account) => {
-    const isTargetSuperadmin = account.role === 'superadmin';
     const isSelf = account.id === actor.id;
-    const canManage = actorIsSuperadmin || !isTargetSuperadmin;
-    const disabledAttr = canManage ? '' : 'disabled title="Only a superadmin can manage superadmin accounts"';
+    const usage = accountUsageStatus(account);
 
     html += `
       <tr class="fids-row">
@@ -350,10 +433,14 @@ function renderAccountsTable(accounts) {
         <td class="fids-cell">${esc(account.display_name)}</td>
         <td class="fids-cell"><span class="role ${esc(account.role)}">${esc(account.role)}</span></td>
         <td class="fids-cell">${account.is_active ? 'Active' : 'Deactivated'}</td>
+        <td class="fids-cell"><span class="activity-status ${usage.className}">${usage.label}</span></td>
+        <td class="fids-cell">${esc(window.formatters.formatDateTime(account.last_login_at))}</td>
+        <td class="fids-cell">${esc(window.formatters.formatDateTime(account.last_activity_at))}</td>
+        <td class="fids-cell">${Number(account.login_count) || 0}</td>
         <td class="fids-cell action-cell">
-          <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="edit" data-id="${account.id}" ${disabledAttr}>Edit</button>
-          ${actorIsSuperadmin ? `<button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="reset" data-id="${account.id}">Reset PW</button>` : ''}
-          <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="deactivate" data-id="${account.id}" ${disabledAttr || (isSelf ? 'disabled' : '')}>Deactivate</button>
+          <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="edit" data-id="${account.id}">Edit</button>
+          <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="reset" data-id="${account.id}">Reset PW</button>
+          <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="deactivate" data-id="${account.id}" ${isSelf ? 'disabled' : ''}>Deactivate</button>
         </td>
       </tr>
     `;
@@ -454,7 +541,7 @@ function onResetPasswordClick(id) {
 }
 
 /**
- * Handle admin-initiated password reset submission
+ * Handle Superadmin-initiated password reset submission
  */
 async function onResetPasswordFormSubmit(event) {
   event.preventDefault();
@@ -846,10 +933,40 @@ function setupEventListeners() {
   const manageAccountsBtn = document.getElementById('manage-accounts-btn');
   if (manageAccountsBtn) {
     manageAccountsBtn.addEventListener('click', () => {
+      const user = window.api.getUser();
+      if (!user || user.role !== 'superadmin') return;
       window.components.openModal('accounts-modal');
       fetchAccounts();
     });
   }
+
+  const accountRoleFilter = document.getElementById('account-role-filter');
+  if (accountRoleFilter) accountRoleFilter.addEventListener('change', fetchAccountList);
+  const accountActivityFilter = document.getElementById('account-activity-filter');
+  if (accountActivityFilter) accountActivityFilter.addEventListener('change', fetchAccountList);
+  const accountSearchFilter = document.getElementById('account-search-filter');
+  let accountSearchDebounce;
+  if (accountSearchFilter) {
+    accountSearchFilter.addEventListener('input', () => {
+      clearTimeout(accountSearchDebounce);
+      accountSearchDebounce = setTimeout(() => {
+        fetchAccountList().catch(() => window.components.showToast('Failed to search accounts', 'error'));
+      }, 300);
+    });
+  }
+  const accountFiltersClear = document.getElementById('account-filters-clear');
+  if (accountFiltersClear) {
+    accountFiltersClear.addEventListener('click', () => {
+      if (accountSearchFilter) accountSearchFilter.value = '';
+      if (accountRoleFilter) accountRoleFilter.value = '';
+      if (accountActivityFilter) accountActivityFilter.value = '';
+      fetchAccountList().catch(() => window.components.showToast('Failed to clear account filters', 'error'));
+    });
+  }
+  const eventFilterApply = document.getElementById('event-filter-apply');
+  if (eventFilterApply) eventFilterApply.addEventListener('click', () => {
+    fetchActivityEvents().catch(() => window.components.showToast('Failed to load activity events', 'error'));
+  });
 
   const createAccountBtn = document.getElementById('create-account-btn');
   if (createAccountBtn) createAccountBtn.addEventListener('click', onCreateAccountClick);

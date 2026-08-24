@@ -107,7 +107,7 @@
 
     <!-- Main FIDS Grid Table -->
     <section class="table-container">
-      <table class="fids-table">
+      <table class="fids-table" id="vessels-table">
         <thead>
           <tr>
             <th data-sort="vessel_name">Vessel Name</th>
@@ -153,7 +153,7 @@
       </button>
     </section>
 
-    <!-- Account Management Panel (Admin + Superadmin) -->
+    <!-- Account Management Panel (Superadmin Only) -->
     <section class="control-panel" id="accounts-tools-container" style="display: none; justify-content: flex-start; gap: 1rem;">
       <span style="font-weight: 700; text-transform: uppercase; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem;">
         👤 Account Management:
@@ -317,7 +317,7 @@
 
   <!-- Bulk CSV Import Modal Dialog -->
   <div class="modal-overlay" id="import-modal">
-    <div class="modal-wrapper" style="max-width: 900px;">
+    <div class="modal-wrapper" style="max-width: 1280px;">
       <div class="modal-header">
         <h3>Import Vessels from CSV</h3>
         <button class="modal-close-btn" id="import-modal-close-top">&times;</button>
@@ -428,23 +428,80 @@
         <button class="modal-close-btn" id="accounts-modal-close-top">&times;</button>
       </div>
       <div class="modal-body">
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+        <p class="activity-tracking-note" id="activity-tracking-note">Activity data is available from the date tracking was deployed.</p>
+        <div class="activity-summary-grid" id="activity-summary-grid">
+          <div class="activity-summary-card"><span>Total Accounts</span><strong id="activity-total-accounts">-</strong></div>
+          <div class="activity-summary-card active"><span>Active Now</span><strong id="activity-active-now">-</strong></div>
+          <div class="activity-summary-card used"><span>Used in 30 Days</span><strong id="activity-used-30d">-</strong></div>
+          <div class="activity-summary-card inactive"><span>Inactive 30 Days+</span><strong id="activity-inactive-30d">-</strong></div>
+          <div class="activity-summary-card never"><span>Never Logged In</span><strong id="activity-never-login">-</strong></div>
+          <div class="activity-summary-card deactivated"><span>Deactivated</span><strong id="activity-deactivated">-</strong></div>
+        </div>
+        <div class="table-container activity-role-breakdown">
+          <table class="fids-table activity-table">
+            <thead><tr><th>Role</th><th>Total</th><th>Enabled</th><th>Ever Login</th><th>Active Now</th><th>Used 30D</th><th>Inactive 30D+</th><th>Never Login</th></tr></thead>
+            <tbody id="activity-role-summary-body"></tbody>
+          </table>
+        </div>
+        <div class="account-management-toolbar">
+          <div class="activity-filters">
+            <input class="form-control" id="account-search-filter" maxlength="100" placeholder="Search username or display name" aria-label="Search accounts by username or display name">
+            <select class="form-select" id="account-role-filter" aria-label="Filter accounts by role">
+              <option value="">All Roles</option>
+              <option value="superadmin">Superadmin</option><option value="admin">Admin</option><option value="operator">Operator</option><option value="viewer">Viewer</option>
+            </select>
+            <select class="form-select" id="account-activity-filter" aria-label="Filter accounts by activity">
+              <option value="">All Usage Statuses</option>
+              <option value="active-now">Active Now</option><option value="active-30d">Used in 30 Days</option><option value="inactive-30d">Inactive 30 Days+</option><option value="never-login">Never Logged In</option>
+            </select>
+            <button class="btn btn-secondary" id="account-filters-clear" type="button">Clear Filters</button>
+          </div>
           <button class="btn btn-primary" id="create-account-btn">➕ New Account</button>
         </div>
         <div class="table-container" style="max-height: 400px; overflow-y: auto;">
-          <table class="fids-table" style="font-size: 0.85rem;">
+          <table class="fids-table" id="accounts-table" style="font-size: 0.85rem;">
             <thead>
               <tr style="background-color: var(--bg-primary);">
                 <th>Username</th>
                 <th>Display Name</th>
                 <th>Role</th>
-                <th>Status</th>
+                <th>Account</th>
+                <th>Usage</th>
+                <th>Last Login</th>
+                <th>Last Activity</th>
+                <th>Logins</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody id="accounts-table-body">
               <!-- Populated by JS -->
             </tbody>
+          </table>
+        </div>
+        <h4 class="activity-section-title">Recent Activity Events</h4>
+        <div class="activity-filters activity-event-filters">
+          <select class="form-select" id="event-role-filter" aria-label="Filter events by role">
+            <option value="">All Roles</option>
+            <option value="superadmin">Superadmin</option><option value="admin">Admin</option><option value="operator">Operator</option><option value="viewer">Viewer</option>
+          </select>
+          <select class="form-select" id="event-action-filter" aria-label="Filter events by activity">
+            <option value="">All Activities</option>
+            <option value="AUTH_LOGIN">Logged in</option>
+            <option value="AUTH_LOGOUT">Logged out</option>
+            <option value="DASHBOARD_VIEWED">Viewed vessel dashboard</option>
+            <option value="ACCOUNT_LIST_VIEWED">Viewed account list</option>
+            <option value="ACCOUNT_CREATED">Created account</option>
+            <option value="ACCOUNT_UPDATED">Updated account</option>
+            <option value="ACCOUNT_DEACTIVATED">Deactivated account</option>
+            <option value="ACCOUNT_PASSWORD_RESET">Reset password</option>
+            <option value="ACTIVITY_REPORT_VIEWED">Viewed activity report</option>
+          </select>
+          <button class="btn btn-secondary" id="event-filter-apply" type="button">Apply</button>
+        </div>
+        <div class="table-container" style="max-height: 320px; overflow-y: auto;">
+          <table class="fids-table activity-table">
+            <thead><tr><th scope="col">Time</th><th scope="col">Performed By</th><th scope="col">Actor Role</th><th scope="col">Activity</th><th scope="col">Affected Account</th><th scope="col">Result</th><th scope="col">Details</th></tr></thead>
+            <tbody id="activity-events-body"></tbody>
           </table>
         </div>
       </div>

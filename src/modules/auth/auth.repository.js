@@ -27,10 +27,10 @@ class AuthRepository {
    * @param {number} userId
    * @param {string|null} tokenHash
    */
-  async updateRefreshToken(userId, tokenHash) {
-    return database.db('users')
+  async updateRefreshToken(userId, tokenHash, conn = database.db) {
+    return conn('users')
       .where('id', userId)
-      .update({ refresh_token_hash: tokenHash, updated_at: database.db.fn.now() });
+      .update({ refresh_token_hash: tokenHash, updated_at: conn.fn.now() });
   }
 
   /**

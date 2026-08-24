@@ -758,7 +758,7 @@ header {
   background-color: var(--bg-secondary);
 }
 
-.fids-cell.action-cell,
+#vessels-table .fids-cell.action-cell,
 #action-header-cell {
   position: sticky;
   right: 0;
@@ -1326,6 +1326,103 @@ header {
   opacity: 0.55;
 }
 
+/* Superadmin user-activity reporting */
+.activity-tracking-note {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.75rem;
+}
+.activity-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+.activity-summary-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  padding: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.activity-summary-card span { color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; }
+.activity-summary-card strong { font-size: 1.4rem; }
+.activity-summary-card.active { border-color: rgba(16, 185, 129, 0.5); }
+.activity-summary-card.used { border-color: rgba(59, 130, 246, 0.5); }
+.activity-summary-card.inactive { border-color: rgba(245, 158, 11, 0.5); }
+.activity-summary-card.deactivated { border-color: rgba(239, 68, 68, 0.5); }
+.activity-role-breakdown { margin-bottom: 1rem; }
+.account-management-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.activity-filters { display: flex; gap: 0.6rem; align-items: center; }
+.activity-filters .form-select, .activity-filters .form-control { min-width: 170px; }
+.activity-section-title { margin: 1.25rem 0 0.65rem; }
+.activity-event-filters { margin-bottom: 0.65rem; }
+.activity-table { font-size: 0.78rem; }
+.activity-empty { text-align: center; color: var(--text-muted); padding: 1.5rem; }
+.activity-action { font-family: var(--font-mono); font-size: 0.72rem; }
+.fids-table .role {
+  display: inline-block;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.activity-status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.18rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.activity-status.active-now { color: var(--color-berth); background: rgba(16, 185, 129, 0.12); }
+.activity-status.active-30d { color: #60a5fa; background: rgba(59, 130, 246, 0.12); }
+.activity-status.inactive { color: #f59e0b; background: rgba(245, 158, 11, 0.12); }
+.activity-status.never { color: var(--text-muted); background: rgba(148, 163, 184, 0.12); }
+.activity-status.deactivated { color: var(--color-depart); background: rgba(239, 68, 68, 0.12); }
+
+/* Account actions deliberately scroll with the table. Sticky positioning is
+   scoped to #vessels-table above so these buttons never cover account data. */
+#accounts-table { min-width: 1160px; }
+#accounts-table th:last-child,
+#accounts-table td:last-child {
+  min-width: 245px;
+  white-space: nowrap;
+  position: static;
+}
+.activity-person-primary,
+.activity-person-secondary { display: block; }
+.activity-person-primary { font-weight: 600; }
+.activity-person-secondary { color: var(--text-muted); font-size: 0.7rem; margin-top: 0.15rem; }
+.activity-result {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.18rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.activity-result.success { color: var(--color-berth); background: rgba(16, 185, 129, 0.12); }
+.activity-details { position: relative; }
+.activity-details summary { color: #60a5fa; cursor: pointer; font-weight: 600; }
+.activity-details div {
+  min-width: 230px;
+  margin-top: 0.4rem;
+  padding: 0.55rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
 /* Responsive layout: three tiers (mobile-first additions; desktop styles
    above 1024px are untouched by any of these). */
 
@@ -1345,6 +1442,8 @@ header {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
+
+  .activity-summary-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 768px) {
@@ -1427,6 +1526,10 @@ header {
   .password-checklist {
     grid-template-columns: 1fr;
   }
+
+  .activity-summary-grid { grid-template-columns: repeat(2, 1fr); }
+  .account-management-toolbar, .activity-filters { align-items: stretch; flex-direction: column; }
+  .activity-filters .form-select, .activity-filters .form-control { width: 100%; }
 }
 
 /* F21: large-screen / TV tier. Nothing above the 1024px breakpoint was ever

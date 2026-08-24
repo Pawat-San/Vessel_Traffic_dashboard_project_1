@@ -58,7 +58,7 @@ exports.seed = async function seed(knex) {
         // eslint-disable-next-line no-console
         console.warn(
           `No ${role.toUpperCase()}_PASSWORD set; generated a random password for demo account '${envUsername}': ${password}\n` +
-          'This password is shown once and is not stored anywhere else. Save it now, or reset it later via an admin.'
+          'This password is shown once and is not stored anywhere else. Save it now, or reset it later via a superadmin.'
         );
       }
 

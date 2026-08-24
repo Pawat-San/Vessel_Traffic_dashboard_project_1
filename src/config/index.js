@@ -70,6 +70,10 @@ module.exports = {
     maxAgeDays: positiveInt(process.env.PASSWORD_MAX_AGE_DAYS, 90),
     historyLimit: positiveInt(process.env.PASSWORD_HISTORY_LIMIT, 5),
   },
+
+  activity: {
+    retentionDays: positiveInt(process.env.USER_ACTIVITY_RETENTION_DAYS, 180),
+  },
   
   db: {
     client: process.env.DB_CLIENT === 'pg' ? 'pg' : 'sqlite',

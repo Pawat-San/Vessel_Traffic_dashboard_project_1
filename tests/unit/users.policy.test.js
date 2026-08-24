@@ -41,8 +41,8 @@ describe('users.policy canManageUser() -- privilege escalation matrix', () => {
       [undefined, 'admin'],
       [undefined, 'operator'],
       [undefined, 'viewer'],
-    ])('target current=%s, new=%s -> allowed', (targetCurrentRole, targetNewRole) => {
-      expect(canManageUser('admin', targetCurrentRole, targetNewRole).allowed).toBe(true);
+    ])('target current=%s, new=%s -> DENIED', (targetCurrentRole, targetNewRole) => {
+      expect(canManageUser('admin', targetCurrentRole, targetNewRole).allowed).toBe(false);
     });
   });
 

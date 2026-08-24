@@ -13,6 +13,7 @@ const {
 const config = require('../../config');
 const database = require('../../database/knex');
 const logger = require('../../utils/logger');
+const userActivityService = require('./userActivity.service');
 
 class UsersService {
   /**
@@ -109,8 +110,14 @@ class UsersService {
     }
   }
 
-  async listUsers(filters, pagination) {
-    return usersRepository.findAndCount(filters, pagination);
+  async listUsers(actorUser, filters, pagination) {
+    this.assertCanManage(actorUser.role);
+    const now = Date.now();
+    return usersRepository.findAndCount({
+      ...filters,
+      activeNowCutoff: new Date(now - 15 * 60 * 1000).toISOString(),
+      active30DayCutoff: new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    }, pagination);
   }
 
   async getUserById(id) {
@@ -119,6 +126,21 @@ class UsersService {
       throw new NotFoundError(`User with ID ${id} not found`);
     }
     return user;
+  }
+
+  async getManagedUserById(actorUser, id) {
+    this.assertCanManage(actorUser.role);
+    return this.getUserById(id);
+  }
+
+  async getActivitySummary(actorUser) {
+    this.assertCanManage(actorUser.role);
+    return userActivityService.getSummary(actorUser);
+  }
+
+  async listActivityEvents(actorUser, filters, pagination) {
+    this.assertCanManage(actorUser.role);
+    return userActivityService.listEvents(actorUser, filters, pagination);
   }
 
   async createUser(actorUser, data, clientIp) {

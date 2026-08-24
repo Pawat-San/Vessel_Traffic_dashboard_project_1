@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 const { AuthenticationError } = require('../utils/errors');
+const trackUserActivity = require('./trackUserActivity');
 
 /**
  * JWT authentication middleware
@@ -24,7 +25,10 @@ function authenticate(req, res, next) {
       role: decoded.role,
       displayName: decoded.displayName,
     };
-    
+
+    // Register once, after JWT verification. The listener records only
+    // successful responses and never blocks the primary API operation.
+    trackUserActivity(req, res);
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

@@ -54,11 +54,12 @@ An uppercase letter is not required under the current requirements.
 
 | Capability | Superadmin | Admin | Operator | Viewer |
 |---|---:|---:|---:|---:|
-| View the account list | Yes | Yes | No | No |
+| View the account list | Yes | No | No | No |
 | Create an account | Yes | No | No | No |
 | Reset another user's password | Yes | No | No | No |
 | Change own password | Yes | Yes | Yes | Yes |
-| Edit ordinary account details | Yes | Yes, subject to existing policy | No | No |
+| Edit ordinary account details | Yes | No | No | No |
+| Deactivate an account | Yes | No | No | No |
 | Manage a Superadmin account | Yes | No | No | No |
 
 Hiding controls in the frontend is only a user-experience measure. The backend must enforce authorization on every request.
@@ -73,7 +74,7 @@ Hiding controls in the frontend is only a user-experience measure. The backend m
 | P0 | Backend password policy | The backend is the primary security boundary for every password flow. |
 | P0 | Password history and transactions | Password reuse protection requires consistent, atomic data updates. |
 | P0 | Password expiration and route protection | The 90-day rule must affect both new logins and sessions that are already open. |
-| P0 | RBAC for account creation and reset | Admin users must also be blocked from calling the APIs directly. |
+| P0 | Superadmin-only Account Management RBAC | Every non-Superadmin role must be blocked from all Account Management APIs. |
 | P1 | Session revocation and auditing | Existing sessions must not remain reusable after credentials change. |
 | P1 | Frontend password checklist | The checklist helps users satisfy the policy before submitting a form. |
 | P1 | Automated tests | Authentication and authorization changes require regression protection. |
@@ -456,7 +457,7 @@ All other APIs must return `PASSWORD_CHANGE_REQUIRED`.
 
 ---
 
-## Phase 7 — Restrict Account Creation and Password Reset to Superadmin
+## Phase 7 — Restrict All Account Management to Superadmin
 
 ### Files
 
@@ -466,30 +467,33 @@ All other APIs must return `PASSWORD_CHANGE_REQUIRED`.
 
 ### Route-Level Authorization
 
-Change the following endpoint permissions:
+Restrict the entire Account Management API to Superadmin:
 
 ```text
-POST /api/users                     -> superadmin only
-POST /api/users/:id/reset-password  -> superadmin only
+GET    /api/users                     -> superadmin only
+GET    /api/users/:id                 -> superadmin only
+POST   /api/users                     -> superadmin only
+PUT    /api/users/:id                 -> superadmin only
+DELETE /api/users/:id                 -> superadmin only
+POST   /api/users/:id/reset-password  -> superadmin only
 ```
 
-Keep other endpoint policies unchanged unless a separate requirement changes them.
+Keep `POST /api/users/me/change-password` available to every authenticated role.
 
 ### Service-Level Authorization
 
 Enforce the same rules inside the service so internal code cannot bypass the Express middleware:
 
-- `createUser()` rejects every actor that is not a Superadmin.
-- `resetPassword()` rejects every actor that is not a Superadmin.
+- Account list, detail, create, update, deactivate, and reset operations reject every actor that is not a Superadmin.
 - `changeOwnPassword()` remains available to every authenticated role.
 
-An Admin calling either restricted API directly must receive `403 Forbidden`.
+An Admin calling any Account Management API directly must receive `403 Forbidden`.
 
 ### Completion Criteria
 
-- An Admin cannot create an account.
-- An Admin cannot reset another user's password.
-- A Superadmin can perform both actions.
+- An Admin cannot view or use Account Management.
+- An Admin cannot list, view, create, edit, deactivate, or reset another account through direct API calls.
+- A Superadmin can perform all Account Management actions.
 - Operator and Viewer roles remain blocked.
 - Changing one's own password continues to work for every role.
 
@@ -599,11 +603,11 @@ Do not reveal which history position matched.
 
 ### 9.5 Role-Based UI
 
-For Admin users:
+For Admin, Operator, and Viewer users:
 
-- Hide the Create Account button.
-- Hide Reset Password actions on every account row.
-- Keep Edit and Deactivate controls according to the existing policy.
+- Hide the entire Account Management panel.
+- Do not load the account list.
+- Do not expose Create, Edit, Deactivate, or Reset controls.
 
 For Superadmin users:
 
@@ -614,8 +618,8 @@ For Superadmin users:
 
 - Checklist items update immediately while typing.
 - Submission is blocked when the checklist or confirmation does not pass.
-- Admin users do not see Create or Reset controls.
-- Superadmin users can access both controls.
+- Admin, Operator, and Viewer users do not see Account Management.
+- Superadmin users can access all Account Management controls.
 - Backend errors are displayed clearly without exposing sensitive data.
 
 ---
@@ -652,8 +656,7 @@ For Superadmin users:
 
 ### 10.4 RBAC Integration Tests
 
-- Admin receives `403` from `POST /api/users`.
-- Admin receives `403` from `POST /api/users/:id/reset-password`.
+- Admin receives `403` from every Account Management endpoint.
 - Superadmin can create an account.
 - Superadmin can reset another user's password.
 - Operator and Viewer receive `403`.
@@ -679,8 +682,8 @@ For Superadmin users:
 - Checklist state changes in response to input.
 - Submit remains disabled until every requirement passes.
 - A mismatched Confirm Password prevents submission.
-- Admin visibility rules hide Create and Reset controls.
-- Superadmin visibility rules show Create and Reset controls.
+- Admin, Operator, and Viewer visibility rules hide Account Management entirely.
+- Superadmin visibility rules show all Account Management controls.
 - `PASSWORD_RECENTLY_USED` displays the correct message.
 
 ### Verification Commands
@@ -745,8 +748,8 @@ PASSWORD_HISTORY_LIMIT=5
 Test in this order:
 
 1. Existing accounts can log in.
-2. Admin users do not see Create or Reset controls.
-3. Admin receives `403` when calling Create or Reset APIs directly.
+2. Admin, Operator, and Viewer users do not see Account Management.
+3. Admin receives `403` when calling any Account Management API directly.
 4. Superadmin can create an account.
 5. A new user is forced to change the temporary password.
 6. The password checklist works for every relevant form.
@@ -807,8 +810,8 @@ Split implementation into reviewable change sets.
 
 ### Change Set 4 — RBAC
 
-- Restrict Create Account to Superadmin.
-- Restrict Reset Password to Superadmin.
+- Restrict all Account Management endpoints to Superadmin.
+- Hide the entire Account Management interface from every non-Superadmin role.
 - Add service-level authorization.
 - Add RBAC integration tests.
 
@@ -838,8 +841,8 @@ The feature is complete only when all of the following are true:
 - Users cannot reuse any of their 5 most recent passwords.
 - Passwords expire after 90 days.
 - Expired users are blocked from every endpoint except Change Password and Logout.
-- Only Superadmin can create accounts or reset another user's password.
-- Admin receives `403` when calling either restricted API directly.
+- Only Superadmin can view or use Account Management.
+- Admin receives `403` when calling any Account Management API directly.
 - Existing refresh tokens are revoked after reset or change.
 - Password update, password history, and audit writing occur in one transaction.
 - APIs and logs never expose a password or password hash.
@@ -861,7 +864,7 @@ The feature is complete only when all of the following are true:
 5. Add password-history repository operations.
 6. Consolidate password changes in one transactional service.
 7. Enforce the 90-day password lifetime.
-8. Restrict Create Account and Reset Password to Superadmin.
+8. Restrict all Account Management functions to Superadmin.
 9. Revoke sessions and improve auditing.
 10. Add Password Checklist and Confirm Password to the frontend.
 11. Add unit, integration, transaction, and frontend tests.

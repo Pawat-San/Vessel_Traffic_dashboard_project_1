@@ -24,7 +24,12 @@ describe('Users API integration -- RBAC matrix', () => {
     await createUser({ username: 'api-operator', password: 'password12345', role: 'operator' });
     await createUser({ username: 'api-viewer', password: 'password12345', role: 'viewer' });
     targetSuperadmin = await createUser({ username: 'api-superadmin-2', password: 'password12345', role: 'superadmin' });
-    targetOperator = await createUser({ username: 'api-operator-2', password: 'password12345', role: 'operator' });
+    targetOperator = await createUser({
+      username: 'api-operator-2',
+      password: 'password12345',
+      display_name: 'Needle Operations User',
+      role: 'operator',
+    });
 
     superadminToken = await loginAs('api-superadmin', 'password12345');
     adminToken = await loginAs('api-admin', 'password12345');
@@ -71,7 +76,13 @@ describe('Users API integration -- RBAC matrix', () => {
     expect(res.status).toBe(403);
   });
 
-  it('admin cannot create an account but can still edit an ordinary account', async () => {
+  it('admin cannot use any Account Management operation', async () => {
+    const listRes = await request(app).get('/api/users').set('Authorization', `Bearer ${adminToken}`);
+    expect(listRes.status).toBe(403);
+
+    const detailRes = await request(app).get(`/api/users/${targetOperator.id}`).set('Authorization', `Bearer ${adminToken}`);
+    expect(detailRes.status).toBe(403);
+
     const createRes = await request(app)
       .post('/api/users')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -84,8 +95,12 @@ describe('Users API integration -- RBAC matrix', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ role: 'viewer' });
 
-    expect(editRes.status).toBe(200);
-    expect(editRes.body.data.role).toBe('viewer');
+    expect(editRes.status).toBe(403);
+
+    const deactivateRes = await request(app)
+      .delete(`/api/users/${targetOperator.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(deactivateRes.status).toBe(403);
   });
 
   it('superadmin CAN create, edit, and reset-password a superadmin account', async () => {
@@ -111,5 +126,29 @@ describe('Users API integration -- RBAC matrix', () => {
       expect(user).not.toHaveProperty('password_hash');
       expect(user).not.toHaveProperty('refresh_token_hash');
     }
+  });
+
+  it('searches username and display name case-insensitively with literal wildcard handling', async () => {
+    await createUser({ username: 'literal%account', display_name: 'Percent Account', role: 'viewer' });
+
+    const usernameRes = await request(app)
+      .get('/api/users?search=API-OPERATOR-2')
+      .set('Authorization', `Bearer ${superadminToken}`);
+    expect(usernameRes.status).toBe(200);
+    expect(usernameRes.body.data.map((user) => user.id)).toContain(targetOperator.id);
+
+    const displayNameRes = await request(app)
+      .get('/api/users?search=needle%20operations')
+      .set('Authorization', `Bearer ${superadminToken}`);
+    expect(displayNameRes.status).toBe(200);
+    expect(displayNameRes.body.data).toHaveLength(1);
+    expect(displayNameRes.body.data[0].id).toBe(targetOperator.id);
+
+    const literalWildcardRes = await request(app)
+      .get('/api/users?search=%25')
+      .set('Authorization', `Bearer ${superadminToken}`);
+    expect(literalWildcardRes.status).toBe(200);
+    expect(literalWildcardRes.body.data).toHaveLength(1);
+    expect(literalWildcardRes.body.data[0].username).toBe('literal%account');
   });
 });

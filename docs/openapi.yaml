@@ -345,14 +345,25 @@ paths:
 
   /users:
     get:
-      summary: List user accounts (Admin/Superadmin)
+      summary: List user accounts and activity status (Superadmin Only)
       security:
         - bearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          description: Case-insensitive partial match on username or display name
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: role
+          in: query
+          schema: { type: string, enum: [superadmin, admin, operator, viewer] }
+        - name: activityStatus
+          in: query
+          schema: { type: string, enum: [active-now, active-30d, inactive-30d, never-login] }
       responses:
         '200':
           description: Safe account records without credential hashes
         '403':
-          description: Insufficient role or password change required
+          description: Only Superadmin can view Account Management
     post:
       summary: Create an account (Superadmin Only)
       security:
@@ -384,6 +395,55 @@ paths:
           description: Password policy or request validation failed
         '403':
           description: Only Superadmin can create accounts
+
+  /users/activity-summary:
+    get:
+      summary: Get all-role user activity summary (Superadmin Only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Account and usage metrics overall and by role
+        '403':
+          description: Only Superadmin can view user activity
+
+  /users/activity-events:
+    get:
+      summary: List safe user activity event metadata (Superadmin Only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - name: userId
+          in: query
+          description: Filter by the actor user ID
+          schema: { type: integer, minimum: 1 }
+        - name: targetUserId
+          in: query
+          description: Filter by the affected account user ID
+          schema: { type: integer, minimum: 1 }
+        - name: role
+          in: query
+          schema: { type: string, enum: [superadmin, admin, operator, viewer] }
+        - name: action
+          in: query
+          schema: { type: string, maxLength: 120 }
+        - name: startDate
+          in: query
+          schema: { type: string, format: date-time }
+        - name: endDate
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Paginated events with readable action labels and separate actor/affected-account metadata; never includes credentials, tokens, headers, or bodies
+        '403':
+          description: Only Superadmin can view user activity
 
   /users/me/change-password:
     post:
