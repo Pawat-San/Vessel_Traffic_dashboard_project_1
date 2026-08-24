@@ -20,7 +20,11 @@ class UserActivityRepository {
       .onConflict(['user_id', 'activity_date'])
       .merge({
         role: user.role,
-        request_count: conn.raw('?? + 1', ['request_count']),
+        // PostgreSQL exposes both the target row and the EXCLUDED row inside
+        // ON CONFLICT DO UPDATE, so an unqualified `request_count` reference is
+        // ambiguous. Qualify the target column explicitly; SQLite accepts the
+        // same expression, keeping local and production behavior aligned.
+        request_count: conn.raw('??.?? + 1', ['user_activity_daily', 'request_count']),
         last_activity_at: occurredAt,
       });
   }
