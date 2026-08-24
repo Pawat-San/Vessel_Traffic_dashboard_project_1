@@ -3,6 +3,8 @@ const repository = require('./userActivity.repository');
 const { AuthorizationError } = require('../../utils/errors');
 const logger = require('../../utils/logger');
 const { getActionLabel } = require('../../utils/activityCatalog');
+const crypto = require('crypto');
+const config = require('../../config');
 
 const ROLES = ['superadmin', 'admin', 'operator', 'viewer'];
 const ACTIVE_NOW_MS = 15 * 60 * 1000;
@@ -50,12 +52,29 @@ class UserActivityService {
   }
 
   async recordSuccessfulLogin(user, metadata, tokenHash) {
-    return database.db.transaction((trx) => repository.recordLogin(user, metadata, tokenHash, trx));
+    const enriched = {
+      ...metadata,
+      user_agent_hash: metadata.user_agent
+        ? crypto.createHash('sha256').update(metadata.user_agent).digest('hex')
+        : null,
+    };
+    return database.db.transaction((trx) => repository.recordLogin(user, enriched, tokenHash, trx));
   }
 
   async recordRequestActivity(user, metadata) {
     try {
-      await repository.recordActivity(user, metadata);
+      const isHeartbeat = metadata.action === 'DASHBOARD_VIEWED';
+      const heartbeatCutoff = new Date(
+        new Date(metadata.occurred_at).getTime() - config.activity.heartbeatMinutes * 60 * 1000
+      ).toISOString();
+      await database.db.transaction((trx) => repository.recordActivity(user, {
+        ...metadata,
+        user_agent_hash: metadata.user_agent
+          ? crypto.createHash('sha256').update(metadata.user_agent).digest('hex')
+          : null,
+        is_heartbeat: isHeartbeat,
+        heartbeat_cutoff: heartbeatCutoff,
+      }, trx));
     } catch (error) {
       logger.error('Failed to record user activity', {
         error: error.message,
@@ -109,6 +128,13 @@ class UserActivityService {
   async purgeExpiredEvents(retentionDays) {
     const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
     return repository.purgeOlderThan(cutoff);
+  }
+
+  async purgeExpiredDailySummaries(retentionDays) {
+    const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    return repository.purgeDailyOlderThan(cutoffDate);
   }
 }
 

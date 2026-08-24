@@ -72,7 +72,9 @@ module.exports = {
   },
 
   activity: {
-    retentionDays: positiveInt(process.env.USER_ACTIVITY_RETENTION_DAYS, 180),
+    retentionDays: positiveInt(process.env.USER_ACTIVITY_RETENTION_DAYS, 90),
+    heartbeatMinutes: positiveInt(process.env.USER_ACTIVITY_HEARTBEAT_MINUTES, 15),
+    dailyRetentionDays: positiveInt(process.env.USER_ACTIVITY_DAILY_RETENTION_DAYS, 730),
   },
   
   db: {

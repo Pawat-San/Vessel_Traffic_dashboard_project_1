@@ -63,7 +63,7 @@ For each role, display at least:
 
 ### 2.3 Meaning of “Record Everything”
 
-The system must record activity for every role and every successful authenticated API request that represents user or client usage.
+The system must account for activity from every role and every successful authenticated API request. Meaningful actions receive raw events; automatic dashboard polling is coalesced into one heartbeat event per user every 15 minutes. Every request still updates `last_activity_at` and the compact daily summary.
 
 It must record metadata such as:
 
@@ -228,7 +228,7 @@ Recommended indexes:
 
 Use a normalized route template such as `/api/vessels/:id`, not a raw path containing arbitrary IDs or query values.
 
-Define a retention period before production release. A recommended starting value is 180 days, configurable through an environment variable. Retention cleanup must be audited and must never delete summary fields from `users`.
+Retain raw events for 90 days and compact daily summaries for 730 days, both configurable through environment variables. Retention cleanup must never delete summary fields from `users`.
 
 ### Completion Criteria
 
@@ -274,11 +274,15 @@ For every completed authenticated request:
 
 1. Capture the authenticated user ID and role.
 2. Capture the normalized route/action and response status.
-3. Insert an activity event after the response completes.
-4. Update `users.last_activity_at`.
-5. Do not fail the user's primary request if activity recording fails; send the failure to operational logs and monitoring.
+3. Update `users.last_activity_at`.
+4. Increment the user's UTC `user_activity_daily` row.
+5. Insert a raw event for meaningful actions.
+6. Coalesce `DASHBOARD_VIEWED` polling into at most one raw heartbeat event every 15 minutes per user.
+7. Do not fail the user's primary request if activity recording fails; send the failure to operational logs and monitoring.
 
-Because the requirement is to record every action, do not throttle event insertion. A separate optimization may throttle only the summary-field update to `last_activity_at` if event data remains complete and the final timestamp cannot move backward.
+Do not throttle security or data-changing actions. Throttle only automatic dashboard polling events; `last_activity_at` and the daily request count must remain complete.
+
+Store User-Agent on login and when its hash changes. Do not duplicate the same User-Agent value on every heartbeat or repeated request.
 
 Background dashboard refreshes count as activity because they are successful authenticated system usage. This is especially relevant for Viewer accounts used on continuously displayed dashboards. If the organization later wants to distinguish human interaction from an open screen, add a separate `interaction` event type rather than changing the meaning of authenticated activity.
 
@@ -443,7 +447,7 @@ Display dates in the user's local timezone but preserve UTC values in API payloa
 4. Add user summary fields and the activity-event table.
 5. Add repository operations and safe metadata allowlists.
 6. Record successful login for every role.
-7. Record every successful authenticated action for every role.
+7. Record meaningful authenticated actions and coalesced dashboard heartbeats for every role.
 8. Add Superadmin-only summary and event APIs.
 9. Add Superadmin-only activity UI, role metrics, filters, and event history.
 10. Add RBAC, classification, safety, and database compatibility tests.

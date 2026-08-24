@@ -57,3 +57,44 @@ describe('App config — password security', () => {
     expect(config.password).toEqual({ maxAgeDays: 120, historyLimit: 7 });
   });
 });
+
+describe('App config — activity storage', () => {
+  const names = [
+    'USER_ACTIVITY_RETENTION_DAYS',
+    'USER_ACTIVITY_HEARTBEAT_MINUTES',
+    'USER_ACTIVITY_DAILY_RETENTION_DAYS',
+  ];
+  const originals = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+
+  afterEach(() => {
+    for (const name of names) {
+      if (originals[name] === undefined) delete process.env[name];
+      else process.env[name] = originals[name];
+    }
+    jest.resetModules();
+  });
+
+  it('uses bounded defaults for raw events, heartbeats, and daily summaries', () => {
+    for (const name of names) delete process.env[name];
+    jest.resetModules();
+    const config = require('../../src/config');
+    expect(config.activity).toEqual({
+      retentionDays: 90,
+      heartbeatMinutes: 15,
+      dailyRetentionDays: 730,
+    });
+  });
+
+  it('accepts positive integer activity overrides', () => {
+    process.env.USER_ACTIVITY_RETENTION_DAYS = '60';
+    process.env.USER_ACTIVITY_HEARTBEAT_MINUTES = '10';
+    process.env.USER_ACTIVITY_DAILY_RETENTION_DAYS = '365';
+    jest.resetModules();
+    const config = require('../../src/config');
+    expect(config.activity).toEqual({
+      retentionDays: 60,
+      heartbeatMinutes: 10,
+      dailyRetentionDays: 365,
+    });
+  });
+});

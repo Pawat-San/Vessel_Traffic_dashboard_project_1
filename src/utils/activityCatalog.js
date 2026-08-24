@@ -23,6 +23,7 @@ const ACTION_LABELS = Object.freeze({
 
 const ROUTE_ACTIONS = Object.freeze({
   'GET /api/vessels': 'DASHBOARD_VIEWED',
+  'GET /api/vessels/summary': 'DASHBOARD_VIEWED',
   'POST /api/vessels': 'VESSEL_CREATED',
   'PUT /api/vessels/:id': 'VESSEL_UPDATED',
   'DELETE /api/vessels/:id': 'VESSEL_DELETED',
