@@ -4,6 +4,7 @@ const authenticate = require('../../middleware/authenticate');
 const authorize = require('../../middleware/authorize');
 const requirePasswordChange = require('../../middleware/requirePasswordChange');
 const validate = require('../../middleware/validate');
+const { passwordRateLimiter } = require('../../middleware/rateLimiter');
 const {
   createUserSchema,
   updateUserSchema,
@@ -20,7 +21,7 @@ router.use(authenticate);
 
 // Self-service password change must stay reachable even while must_change_password
 // is set, so it is registered BEFORE the requirePasswordChange gate.
-router.post('/me/change-password', validate.body(selfChangePasswordSchema), usersController.changeOwnPassword);
+router.post('/me/change-password', passwordRateLimiter, validate.body(selfChangePasswordSchema), usersController.changeOwnPassword);
 
 // Everything below is blocked until a forced password change is completed.
 router.use(requirePasswordChange);

@@ -58,10 +58,17 @@ class UsersService {
     }
   }
 
-  async setUserPassword({ targetUserId, newPassword, mustChangePassword, actorUserId, auditAction, auditReason, clientIp }) {
+  async setUserPassword({ targetUserId, newPassword, mustChangePassword, actorUserId, auditAction, auditReason, clientIp, expectedSessionVersion }) {
     this.assertPasswordMeetsPolicy(newPassword);
 
     await database.db.transaction(async (trx) => {
+      let query = trx('users').where('id', targetUserId);
+      if (trx.client.config.client === 'pg') query = query.forUpdate();
+      const current = await query.first();
+      if (!current || (expectedSessionVersion !== undefined
+          && current.session_version !== expectedSessionVersion)) {
+        throw new AuthenticationError('Account changed. Please log in again.');
+      }
       await this.assertPasswordNotReused(targetUserId, newPassword, trx);
       const passwordHash = await hashPassword(newPassword);
 
@@ -187,15 +194,22 @@ class UsersService {
     this.assertCanManage(actorUser.role, target.role, data.role);
     await this.assertNotSelfLockout(actorUser, target, data);
 
-    const updated = await usersRepository.update(targetId, data);
-
-    await usersRepository.createAuditLog({
-      action: 'UPDATE',
-      entity_type: 'user',
-      entity_id: targetId,
-      changes: data,
-      user_id: actorUser.id,
-      ip_address: clientIp,
+    const updated = await database.db.transaction(async (trx) => {
+      const securityChange = (data.role && data.role !== target.role)
+        || (data.is_active !== undefined && Number(data.is_active) !== Number(target.is_active));
+      const update = securityChange ? {
+        ...data, session_version: trx.raw('?? + 1', ['session_version']), refresh_token_hash: null,
+      } : data;
+      const result = await usersRepository.update(targetId, update, trx);
+      await usersRepository.createAuditLog({
+        action: 'UPDATE',
+        entity_type: 'user',
+        entity_id: targetId,
+        changes: data,
+        user_id: actorUser.id,
+        ip_address: clientIp,
+      }, trx);
+      return result;
     });
 
     logger.info(`User account updated: ${updated.username}`, { userId: targetId, updatedBy: actorUser.id });
@@ -207,15 +221,18 @@ class UsersService {
     this.assertCanManage(actorUser.role, target.role);
     await this.assertNotSelfLockout(actorUser, target, { is_active: false });
 
-    await usersRepository.update(targetId, { is_active: 0 });
-
-    await usersRepository.createAuditLog({
-      action: 'DEACTIVATE',
-      entity_type: 'user',
-      entity_id: targetId,
-      changes: { deactivated: true },
-      user_id: actorUser.id,
-      ip_address: clientIp,
+    await database.db.transaction(async (trx) => {
+      await usersRepository.update(targetId, {
+        is_active: 0, session_version: trx.raw('?? + 1', ['session_version']), refresh_token_hash: null,
+      }, trx);
+      await usersRepository.createAuditLog({
+        action: 'DEACTIVATE',
+        entity_type: 'user',
+        entity_id: targetId,
+        changes: { deactivated: true },
+        user_id: actorUser.id,
+        ip_address: clientIp,
+      }, trx);
     });
 
     logger.info(`User account deactivated: ${target.username}`, { userId: targetId, deactivatedBy: actorUser.id });
@@ -250,7 +267,7 @@ class UsersService {
     const passwordExpired = isPasswordExpired(credentials.password_changed_at, config.password.maxAgeDays);
     const forcedChange = Boolean(credentials.must_change_password) || passwordExpired;
 
-    if (!forcedChange) {
+    if (!forcedChange || actorUser.tokenType !== 'password-change') {
       if (!current_password) {
         throw new AuthenticationError('Current password is required');
       }
@@ -266,6 +283,7 @@ class UsersService {
       mustChangePassword: false,
       actorUserId: actorUser.id,
       auditAction: passwordExpired ? 'PASSWORD_EXPIRED_CHANGE' : 'PASSWORD_SELF_CHANGE',
+      expectedSessionVersion: actorUser.sessionVersion,
       auditReason: passwordExpired ? 'expired' : (credentials.must_change_password ? 'forced_change' : 'voluntary_change'),
       clientIp,
     });

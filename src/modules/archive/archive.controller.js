@@ -24,8 +24,8 @@ class ArchiveController {
 
   async purgeArchive(req, res, next) {
     try {
-      const days = req.query.days ? parseInt(req.query.days, 10) : 90;
-      const count = await archiveService.purgeOldArchive(days);
+      const days = req.query.days;
+      const count = await archiveService.purgeOldArchive(days, { id: req.user.id, ip: req.ip });
       res.status(200).json(success({ purgedCount: count, message: `Successfully purged ${count} historical record(s) older than ${days} days.` }));
     } catch (error) {
       next(error);

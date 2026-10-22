@@ -53,7 +53,7 @@ paths:
                   type: string
       responses:
         '200':
-          description: Successful login. The user object includes mustChangePassword and passwordExpired flags.
+          description: Returns a 15-minute access token and user flags. A 7-day HttpOnly, Secure (production), SameSite=Strict refresh_token cookie is set for normal login. Forced password change returns only a purpose-limited 10-minute access token; change the password then log in again. Refresh tokens are never returned in JSON.
         '401':
           description: Invalid credentials
         '429':
@@ -61,18 +61,8 @@ paths:
 
   /auth/refresh:
     post:
-      summary: Issue new access token using refresh token
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - refreshToken
-              properties:
-                refreshToken:
-                  type: string
+      summary: Rotate the HttpOnly refresh_token cookie and issue a new access token
+      description: Send the same-origin refresh_token cookie with an empty body. Response includes accessToken and user, with a replacement cookie. Reuse revokes the session. Rotation never extends the original seven-day expiry.
       responses:
         '200':
           description: New access token generated
@@ -81,7 +71,7 @@ paths:
 
   /auth/logout:
     post:
-      summary: Revoke session refresh token
+      summary: Revoke all account tokens and clear the refresh cookie
       security:
         - bearerAuth: []
       responses:
@@ -329,7 +319,7 @@ paths:
 
   /archive/purge:
     post:
-      summary: Manually purge old archived logs (Admin Only)
+      summary: Manually purge old archived logs (Superadmin Only)
       security:
         - bearerAuth: []
       parameters:
@@ -339,6 +329,8 @@ paths:
           schema:
             type: integer
             default: 90
+            minimum: 1
+            maximum: 3650
       responses:
         '200':
           description: Records purged

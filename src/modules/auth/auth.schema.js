@@ -10,13 +10,6 @@ const loginSchema = z.object({
     .max(100, 'Password must be at most 100 characters'),
 });
 
-const refreshSchema = z.object({
-  refreshToken: z.string({
-    required_error: 'Refresh token is required',
-  }).min(1, 'Refresh token cannot be empty'),
-});
-
 module.exports = {
   loginSchema,
-  refreshSchema,
 };

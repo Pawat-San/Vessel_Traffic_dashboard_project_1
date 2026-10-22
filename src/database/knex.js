@@ -2,6 +2,7 @@ const path = require('path');
 const Knex = require('knex');
 const config = require('../config');
 const logger = require('../utils/logger');
+const databaseSsl = require('../utils/databaseSsl');
 
 let knexInstance = null;
 
@@ -16,6 +17,8 @@ const seeds = {
 
 function buildKnexConfig() {
   if (config.db.client === 'pg') {
+    // DATE is a calendar day, not a timezone-dependent JavaScript instant.
+    require('pg').types.setTypeParser(1082, (value) => value);
     return {
       client: 'pg',
       connection: {
@@ -24,7 +27,7 @@ function buildKnexConfig() {
         user: config.db.user,
         password: config.db.password,
         database: config.db.name,
-        ssl: config.db.ssl ? { rejectUnauthorized: false } : false,
+        ssl: databaseSsl(config.db.ssl, config.db.sslCaFile, config.db.sslVerify),
       },
       pool: { min: 2, max: 10 },
       migrations,

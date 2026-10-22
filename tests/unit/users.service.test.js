@@ -185,7 +185,7 @@ describe('UsersService Unit Tests', () => {
       const user = await createUser({ username: 'forced1', password: 'oldpassword123', must_change_password: true });
 
       await expect(
-        usersService.changeOwnPassword(user, { new_password: 'Newpassword123!' }, '127.0.0.1')
+        usersService.changeOwnPassword({ ...user, tokenType: 'password-change' }, { new_password: 'Newpassword123!' }, '127.0.0.1')
       ).resolves.toBe(true);
 
       const row = await database.db('users').where('id', user.id).first();
@@ -200,7 +200,7 @@ describe('UsersService Unit Tests', () => {
       });
 
       await expect(
-        usersService.changeOwnPassword(user, { new_password: 'Current1!' }, '127.0.0.1')
+        usersService.changeOwnPassword({ ...user, tokenType: 'password-change' }, { new_password: 'Current1!' }, '127.0.0.1')
       ).rejects.toThrow(PasswordRecentlyUsedError);
     });
 

@@ -9,20 +9,40 @@ on:
 jobs:
   quality-check:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        database: [sqlite, pg]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: vessel_dashboard_test
+          POSTGRES_PASSWORD: isolated-test-only
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DB_CLIENT: ${{ matrix.database }}
+      TEST_DB_PORT: '55432'
+      TEST_DB_PASSWORD: isolated-test-only
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: '22'
+          node-version-file: '.node-version'
       - run: npm ci
       - run: npm run lint
-      - run: npm audit --audit-level=high
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm test
 
   build:
     needs: quality-check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - run: docker build -t vessel-dashboard .
       - run: docker run --rm vessel-dashboard node -e "console.log('Build OK')"

@@ -1,6 +1,5 @@
 const logger = require('../utils/logger');
 const { error } = require('../utils/response');
-const { AppError } = require('../utils/errors');
 
 /**
  * Global Express Error Handler Middleware
@@ -19,7 +18,7 @@ function errorHandler(err, req, res, next) {
     path: req.originalUrl,
     method: req.method,
     ip: req.ip,
-    requestId: req.headers['x-request-id'],
+    requestId: req.requestId,
     isOperational,
     stack: err.stack,
   });

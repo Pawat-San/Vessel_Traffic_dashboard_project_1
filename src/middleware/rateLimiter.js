@@ -1,106 +1,93 @@
-const { ValidationError } = require('../utils/errors');
 const config = require('../config');
+const store = require('../utils/rateLimitStore');
+const logger = require('../utils/logger');
 
-// In-memory store for general API rate limiting
-const apiLimitStore = new Map();
-
-// In-memory store for failed login attempts
-// Keys: IP addresses, Values: { attempts: number, lockoutUntil: number }
-const loginLimitStore = new Map();
+// All instances share expiring counters in the application database.
 
 /**
  * General API Rate Limiter Middleware
  */
-function apiRateLimiter(req, res, next) {
+async function apiRateLimiter(req, res, next) {
+  if (req.path === '/health') return next();
   if (config.isTest) {
     return next(); // Disable rate limiter in test environment
   }
 
-  const ip = req.ip;
-  const now = Date.now();
-  const windowMs = config.rateLimiter.windowMs;
-  const max = config.rateLimiter.max;
-
-  if (!apiLimitStore.has(ip)) {
-    apiLimitStore.set(ip, []);
+  try {
+    const result = await store.consume('api-ip', req.ip, config.rateLimiter.max, config.rateLimiter.windowMs);
+    if (!result.allowed) return reject(res, result.retryAfter);
+    return next();
+  } catch (error) {
+    return unavailable(res, error);
   }
-
-  const timestamps = apiLimitStore.get(ip);
-  
-  // Filter out timestamps outside the sliding window
-  const activeTimestamps = timestamps.filter((time) => now - time < windowMs);
-  
-  if (activeTimestamps.length >= max) {
-    const errorDetails = {
-      windowMs,
-      max,
-      retryAfter: Math.ceil((windowMs - (now - activeTimestamps[0])) / 1000),
-    };
-    return res.status(429).json({
-      success: false,
-      error: {
-        code: 'RATE_LIMIT_EXCEEDED',
-        message: `Too many requests from this IP. Please try again in ${errorDetails.retryAfter} seconds.`,
-        details: errorDetails,
-      }
-    });
-  }
-
-  // Record this request
-  activeTimestamps.push(now);
-  apiLimitStore.set(ip, activeTimestamps);
-
-  next();
 }
 
 /**
  * Brute force protection middleware for Login route
  */
-function loginRateLimiter(req, res, next) {
+async function loginRateLimiter(req, res, next) {
   if (config.isTest) {
     return next(); // Disable lockout in tests
   }
 
-  const ip = req.ip;
-  const now = Date.now();
-  const lockoutDuration = 15 * 60 * 1000; // 15 minutes lockout
-  const maxFailedAttempts = 5;
-
-  const record = loginLimitStore.get(ip);
-
-  if (record && record.lockoutUntil && now < record.lockoutUntil) {
-    const waitSeconds = Math.ceil((record.lockoutUntil - now) / 1000);
-    const waitMinutes = Math.ceil(waitSeconds / 60);
-    return res.status(429).json({
-      success: false,
-      error: {
-        code: 'ACCOUNT_LOCKED',
-        message: `Too many failed login attempts. Please try again after ${waitMinutes} minutes.`,
-        details: { retryAfterSeconds: waitSeconds },
-      }
-    });
-  }
-
-  // Intercept response to watch for authentication outcome
-  res.on('finish', () => {
-    const currentRecord = loginLimitStore.get(ip) || { attempts: 0, lockoutUntil: 0 };
-    
-    if (res.statusCode === 401) {
-      currentRecord.attempts += 1;
-      if (currentRecord.attempts >= maxFailedAttempts) {
-        currentRecord.lockoutUntil = Date.now() + lockoutDuration;
-      }
-      loginLimitStore.set(ip, currentRecord);
-    } else if (res.statusCode === 200) {
-      // Reset attempts on successful login
-      loginLimitStore.delete(ip);
+  try {
+    const results = await Promise.all([
+      store.consume('login-account', req.body.username, 5, 15 * 60 * 1000),
+      store.consume('login-ip', req.ip, 100, 15 * 60 * 1000),
+    ]);
+    const blocked = results.find((result) => !result.allowed);
+    const release = () => Promise.all([
+      store.release('login-account', req.body.username, results[0].expiresAt),
+      store.release('login-ip', req.ip, results[1].expiresAt),
+    ]);
+    if (blocked) {
+      await release();
+      return reject(res, blocked.retryAfter, 'ACCOUNT_LOCKED');
     }
-  });
+    res.once('finish', () => {
+      // Only invalid credentials count. Successful login, validation errors,
+      // and infrastructure failures must never lock a user out.
+      if (res.statusCode !== 401) release()
+        .catch((error) => logger.error('Failed to release login reservation', { error: error.message }));
+    });
+    return next();
+  } catch (error) {
+    return unavailable(res, error);
+  }
+}
 
-  next();
+function scopedLimiter(scope, max, identity) {
+  return async (req, res, next) => {
+    if (config.isTest) return next();
+    try {
+      const result = await store.consume(scope, identity(req), max, 15 * 60 * 1000);
+      if (!result.allowed) return reject(res, result.retryAfter);
+      return next();
+    } catch (error) {
+      return unavailable(res, error);
+    }
+  };
+}
+
+function reject(res, retryAfter, code = 'RATE_LIMIT_EXCEEDED') {
+  res.set('Retry-After', String(retryAfter));
+  return res.status(429).json({ success: false, error: {
+    code, message: 'Too many requests. Please try again later.',
+    details: { retryAfterSeconds: retryAfter },
+  } });
+}
+
+function unavailable(res, error) {
+  logger.error('Rate limit store unavailable', { error: error.message });
+  res.set('Retry-After', '30');
+  return res.status(503).json({ success: false, error: {
+    code: 'SERVICE_UNAVAILABLE', message: 'Service temporarily unavailable. Please try again later.',
+  } });
 }
 
 module.exports = {
   apiRateLimiter,
   loginRateLimiter,
+  refreshRateLimiter: scopedLimiter('refresh-ip', 100, (req) => req.ip),
+  passwordRateLimiter: scopedLimiter('password-account', 10, (req) => req.user.id),
 };

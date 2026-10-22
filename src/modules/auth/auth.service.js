@@ -1,4 +1,4 @@
-const jwt = require('jsonwebtoken');
+const { signToken, verifyToken } = require('../../utils/tokens');
 const crypto = require('crypto');
 const config = require('../../config');
 const authRepository = require('./auth.repository');
@@ -37,7 +37,8 @@ class AuthService {
     // Lazily migrate legacy bcrypt hashes to Argon2 on successful login
     if (isLegacyHash(user.password_hash)) {
       const newHash = await hashPassword(password);
-      await authRepository.updatePasswordHash(user.id, newHash);
+      await authRepository.updatePasswordHash(user.id, newHash, user.password_hash);
+      user.password_hash = newHash;
       logger.info(`Migrated password hash to argon2 for user: ${user.username}`, { userId: user.id });
     }
 
@@ -45,25 +46,14 @@ class AuthService {
     const mustChangePassword = Boolean(user.must_change_password) || passwordExpired;
 
     // Generate tokens
-    const accessToken = jwt.sign(
-      {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        displayName: user.display_name,
-      },
-      config.jwt.secret,
-      { expiresIn: config.jwt.accessExpiry }
-    );
-
-    const refreshToken = jwt.sign(
-      { id: user.id },
-      config.jwt.refreshSecret,
-      { expiresIn: config.jwt.refreshExpiry }
-    );
+    // A login starts a new single-account token family, matching the existing
+    // one-refresh-hash-per-user design.
+    user.session_version += 1;
+    const accessToken = signToken(user, mustChangePassword ? 'password-change' : 'access');
+    const refreshToken = mustChangePassword ? null : signToken(user, 'refresh');
 
     // Hash and store the refresh token
-    const tokenHash = this.hashToken(refreshToken);
+    const tokenHash = refreshToken ? this.hashToken(refreshToken) : null;
     await userActivityService.recordSuccessfulLogin(user, {
       ...metadata,
       occurred_at: new Date().toISOString(),
@@ -91,11 +81,11 @@ class AuthService {
   async refresh(refreshToken, metadata = {}) {
     try {
       // 1. Verify token signature and expiration
-      const decoded = jwt.verify(refreshToken, config.jwt.refreshSecret);
+      const decoded = verifyToken(refreshToken, true);
 
       // 2. Fetch user
       const user = await authRepository.findById(decoded.id);
-      if (!user || user.is_active !== 1) {
+      if (!user || !user.is_active || user.session_version !== decoded.sessionVersion) {
         throw new AuthenticationError('User is no longer active or exists');
       }
 
@@ -108,25 +98,24 @@ class AuthService {
       }
 
       // 3. Verify token hash against database record
-      const fullUser = await authRepository.findByUsername(user.username);
       const tokenHash = this.hashToken(refreshToken);
 
-      if (!fullUser.refresh_token_hash || fullUser.refresh_token_hash !== tokenHash) {
+      if (!user.refresh_token_hash || user.refresh_token_hash !== tokenHash) {
+        await authRepository.revokeSessions(user.id, undefined, decoded.sessionVersion);
         logger.warn(`Refresh token mismatch for user ID: ${user.id}`);
         throw new AuthenticationError('Invalid refresh token');
       }
 
       // 4. Generate new access token
-      const accessToken = jwt.sign(
-        {
-          id: user.id,
-          username: user.username,
-          role: user.role,
-          displayName: user.display_name,
-        },
-        config.jwt.secret,
-        { expiresIn: config.jwt.accessExpiry }
+      const accessToken = signToken(user, 'access');
+      const replacement = signToken(user, 'refresh', decoded.exp);
+      const rotated = await authRepository.rotateRefreshToken(
+        user.id, user.session_version, tokenHash, this.hashToken(replacement)
       );
+      if (!rotated) {
+        await authRepository.revokeSessions(user.id, undefined, decoded.sessionVersion);
+        throw new AuthenticationError('Refresh token has already been used');
+      }
 
       logger.info(`Access token refreshed for user: ${user.username}`, { userId: user.id });
 
@@ -140,13 +129,20 @@ class AuthService {
         occurred_at: new Date().toISOString(),
       });
 
-      return { accessToken };
+      return { accessToken, refreshToken: replacement, user: {
+        id: user.id, username: user.username, displayName: user.display_name,
+        role: user.role, mustChangePassword: false, passwordExpired: false,
+      } };
     } catch (error) {
       if (error instanceof AuthenticationError || error instanceof PasswordChangeRequiredError) {
         throw error;
       }
       logger.error('Token refresh execution failed', { error: error.message });
-      throw new AuthenticationError('Invalid or expired refresh token');
+      if (['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)
+          || error.message === 'Invalid token claims') {
+        throw new AuthenticationError('Invalid or expired refresh token');
+      }
+      throw error;
     }
   }
 
@@ -154,7 +150,7 @@ class AuthService {
    * Log out user and revoke refresh token
    */
   async logout(userId) {
-    await authRepository.updateRefreshToken(userId, null);
+    await authRepository.revokeSessions(userId);
     logger.info(`User logged out and session revoked: ID ${userId}`, { userId });
     return true;
   }

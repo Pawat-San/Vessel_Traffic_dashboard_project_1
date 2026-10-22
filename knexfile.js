@@ -1,5 +1,6 @@
 require('dotenv').config();
 const path = require('path');
+const databaseSsl = require('./src/utils/databaseSsl');
 
 const migrations = {
   directory: path.join(__dirname, 'src/database/migrations'),
@@ -39,7 +40,8 @@ const pgConfig = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+    ssl: databaseSsl(process.env.DB_SSL === 'true', process.env.DB_SSL_CA_FILE,
+      process.env.DB_SSL_VERIFY !== 'false'),
   },
   pool: { min: 2, max: 10 },
   migrations,

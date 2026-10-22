@@ -105,6 +105,7 @@ class UsersRepository {
       password_changed_at: data.password_changed_at,
       must_change_password: data.must_change_password ? 1 : 0,
       refresh_token_hash: null,
+      session_version: conn.raw('?? + 1', ['session_version']),
       updated_at: conn.fn.now(),
     });
   }

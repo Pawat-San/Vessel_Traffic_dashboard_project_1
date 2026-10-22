@@ -21,12 +21,33 @@ logger.transports.forEach((t) => {
  * on tables between cases, which would be destructive against real data.
  */
 async function setupTestDb() {
-  config.db.client = 'sqlite';
+  const postgres = process.env.TEST_DB_CLIENT === 'pg';
+  config.db.client = postgres ? 'pg' : 'sqlite';
   config.db.path = ':memory:';
+  if (postgres) {
+    // Never fall back to the application's .env or a remote database.
+    config.db.host = '127.0.0.1';
+    config.db.port = Number(process.env.TEST_DB_PORT || 55432);
+    config.db.name = 'vessel_dashboard_test';
+    config.db.user = 'postgres';
+    config.db.password = process.env.TEST_DB_PASSWORD || 'isolated-test-only';
+    config.db.ssl = false;
+  }
 
   // eslint-disable-next-line global-require
   const database = require('../../src/database/knex');
   const db = database.connect();
+  if (postgres) {
+    const identity = await db.raw('SELECT current_database() AS name');
+    if (identity.rows[0].name !== 'vessel_dashboard_test') throw new Error('Refusing to reset a non-test database');
+    await db.raw('DROP SCHEMA public CASCADE');
+    await db.raw('CREATE SCHEMA public');
+    for (const role of ['anon', 'authenticated']) {
+      const existing = await db('pg_roles').where('rolname', role).first();
+      if (!existing) await db.raw('CREATE ROLE ?? NOLOGIN', [role]);
+      await db.raw('GRANT USAGE ON SCHEMA public TO ??', [role]);
+    }
+  }
 
   await db.migrate.latest();
 

@@ -32,7 +32,7 @@ async function requirePasswordChange(req, res, next) {
       return next();
     }
 
-    const freshUser = await authRepository.findById(req.user.id);
+    const freshUser = req.authUser || await authRepository.findById(req.user.id);
     if (freshUser) {
       const passwordExpired = isPasswordExpired(freshUser.password_changed_at, config.password.maxAgeDays);
       if (freshUser.must_change_password || passwordExpired) {

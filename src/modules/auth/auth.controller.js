@@ -1,5 +1,23 @@
 const authService = require('./auth.service');
 const { success } = require('../../utils/response');
+const config = require('../../config');
+const jwt = require('jsonwebtoken');
+
+const cookieOptions = {
+  httpOnly: true, secure: config.isProd, sameSite: 'strict', path: '/api/auth',
+};
+function sendSession(res, result) {
+  const { refreshToken, ...body } = result;
+  if (refreshToken) {
+    res.cookie('refresh_token', refreshToken, {
+      ...cookieOptions, maxAge: Math.max(0, jwt.decode(refreshToken).exp * 1000 - Date.now()),
+    });
+  } else {
+    res.clearCookie('refresh_token', cookieOptions);
+  }
+  res.set('Cache-Control', 'no-store');
+  return res.status(200).json(success(body));
+}
 
 class AuthController {
   /**
@@ -13,9 +31,7 @@ class AuthController {
         user_agent: req.get('user-agent') || null,
       });
       
-      // We can also set refresh token in HttpOnly cookies if desired for extra security,
-      // but to match the frontend spec we will return it in the JSON body.
-      res.status(200).json(success(result));
+      sendSession(res, result);
     } catch (error) {
       next(error);
     }
@@ -26,13 +42,16 @@ class AuthController {
    */
   async refresh(req, res, next) {
     try {
-      const { refreshToken } = req.body;
+      const refreshToken = req.cookies.refresh_token;
       const result = await authService.refresh(refreshToken, {
         ip_address: req.ip,
         user_agent: req.get('user-agent') || null,
       });
-      res.status(200).json(success(result));
+      sendSession(res, result);
     } catch (error) {
+      if (error.statusCode === 401 || error.statusCode === 403) {
+        res.clearCookie('refresh_token', cookieOptions);
+      }
       next(error);
     }
   }
@@ -44,6 +63,7 @@ class AuthController {
     try {
       // req.user is set by authenticate middleware
       await authService.logout(req.user.id);
+      res.clearCookie('refresh_token', cookieOptions);
       res.status(200).json(success({ message: 'Logout successful' }));
     } catch (error) {
       next(error);

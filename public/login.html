@@ -28,24 +28,34 @@
         Authenticate
       </button>
     </form>
-  </div>
 
+  <form class="login-form" id="password-change-form" hidden>
+    <h2>Change your password</h2>
+    <p>Your password has expired or needs to be changed.</p>
+    <label class="form-label" for="login-new-password">New password</label>
+    <input class="form-control" id="login-new-password" type="password" autocomplete="new-password" maxlength="100" required>
+    <label class="form-label" for="login-confirm-password">Confirm password</label>
+    <input class="form-control" id="login-confirm-password" type="password" autocomplete="new-password" maxlength="100" required>
+    <ul class="password-checklist">
+      <li data-rule="length"><span class="password-rule-icon">○</span> Between 8 and 100 characters</li>
+      <li data-rule="lowercase"><span class="password-rule-icon">○</span> A lowercase letter</li>
+      <li data-rule="number"><span class="password-rule-icon">○</span> A number</li>
+      <li data-rule="special"><span class="password-rule-icon">○</span> A special character</li>
+      <li data-rule="noWhitespace"><span class="password-rule-icon">○</span> No whitespace</li>
+      <li data-rule="matches"><span class="password-rule-icon">○</span> Passwords match</li>
+    </ul>
+    <button class="btn btn-primary" id="login-change-submit" type="submit" disabled>Change password</button>
+  </form>
+  </div>
   <div id="toast-container" class="toast-container"></div>
 
   <!-- Load client scripts -->
   <script src="/js/formatters.js"></script>
+  <script src="/js/validation.js"></script>
   <script src="/js/utils.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/components.js"></script>
   <script src="/js/auth.js"></script>
   
-  <script>
-    document.getElementById('login-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const user = document.getElementById('username').value;
-      const pass = document.getElementById('password').value;
-      window.auth.login(user, pass);
-    });
-  </script>
 </body>
 </html>

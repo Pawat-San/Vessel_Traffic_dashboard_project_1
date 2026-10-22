@@ -4,7 +4,8 @@ const helmet = require('helmet');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const swaggerUi = require('swagger-ui-express');
-const yaml = require('yamljs');
+const yaml = require('yaml');
+const fs = require('fs');
 const path = require('path');
 
 const config = require('./config');
@@ -37,7 +38,11 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'"], // Allow UI script blocks
+      scriptSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
     }
@@ -64,28 +69,26 @@ app.use(requestLogger);
 app.use(express.static(path.join(__dirname, '../public')));
 
 // 6. Serve Swagger UI on /api/docs
-try {
-  const swaggerDocument = yaml.load(path.join(__dirname, '../docs/openapi.yaml'));
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-} catch (err) {
-  console.error('Failed to load Swagger documentation', err);
+if (!config.isProd) {
+  try {
+    const swaggerDocument = yaml.parse(fs.readFileSync(path.join(__dirname, '../docs/openapi.yaml'), 'utf8'));
+    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  } catch (err) {
+    console.error('Failed to load Swagger documentation', err);
+  }
 }
 
 // 7. General API Rate Limiting
 app.use('/api', apiRateLimiter);
 
 // 8. Health Check Endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    data: {
-      status: 'healthy',
-      uptime: Math.round(process.uptime()),
-      database: 'connected',
-      version: '1.0.0',
-      timestamp: new Date().toISOString()
-    }
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    await require('./database/knex').db.raw('SELECT 1');
+    res.status(200).json({ success: true, data: { status: 'healthy' } });
+  } catch (error) {
+    res.status(503).json({ success: false, data: { status: 'unavailable' } });
+  }
 });
 
 // 8b. Public frontend config (branding) -- no auth, mirrors /api/health

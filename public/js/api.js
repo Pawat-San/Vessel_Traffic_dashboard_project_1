@@ -7,51 +7,59 @@ const API_BASE_URL = '/api';
 
 class ApiClient {
   constructor() {
-    this.isRefreshing = false;
-    this.refreshSubscribers = [];
+    this.accessToken = null;
+    this.user = null;
+    this.refreshPromise = null;
+    // Remove credentials left by older releases.
+    ['access_token', 'refresh_token', 'user'].forEach((key) => localStorage.removeItem(key));
   }
 
   getAccessToken() {
-    return localStorage.getItem('access_token');
+    return this.accessToken;
   }
 
-  getRefreshToken() {
-    return localStorage.getItem('refresh_token');
-  }
-
-  setTokens(accessToken, refreshToken) {
-    localStorage.setItem('access_token', accessToken);
-    if (refreshToken) {
-      localStorage.setItem('refresh_token', refreshToken);
-    }
+  setTokens(accessToken) {
+    this.accessToken = accessToken;
   }
 
   clearTokens() {
+    this.accessToken = null;
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
   }
 
   getUser() {
-    const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+    return this.user;
   }
 
   setUser(user) {
-    localStorage.setItem('user', JSON.stringify(user));
+    this.user = user;
   }
 
   clearUser() {
+    this.user = null;
     localStorage.removeItem('user');
   }
 
-  // Add callbacks to resolve after a successful token refresh
-  subscribeTokenRefresh(callback) {
-    this.refreshSubscribers.push(callback);
-  }
-
-  onRefreshed(newAccessToken) {
-    this.refreshSubscribers.forEach((cb) => cb(newAccessToken));
-    this.refreshSubscribers = [];
+  async restoreSession() {
+    if (!this.refreshPromise) {
+      const exchange = async () => {
+        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' }, body: '{}',
+        });
+        const json = await response.json();
+        if (!response.ok) throw json;
+        this.setTokens(json.data.accessToken);
+        this.setUser(json.data.user);
+        return json;
+      };
+      // Serialize cookie rotation across tabs as well as within this page.
+      const exchangePromise = navigator.locks
+        ? navigator.locks.request('vessel-refresh', exchange) : exchange();
+      this.refreshPromise = exchangePromise.finally(() => { this.refreshPromise = null; });
+    }
+    return this.refreshPromise;
   }
 
   /**
@@ -63,6 +71,7 @@ class ApiClient {
     // Auto-setup headers
     options.headers = options.headers || {};
     options.headers['Content-Type'] = options.headers['Content-Type'] || 'application/json';
+    options.credentials = 'same-origin';
     
     const token = this.getAccessToken();
     if (token) {
@@ -73,7 +82,7 @@ class ApiClient {
       const response = await fetch(url, options);
 
       // Handle 401 token expiration (unless we are performing login/refresh)
-      if (response.status === 401 && !endpoint.startsWith('/auth/login') && !endpoint.startsWith('/auth/refresh')) {
+      if (response.status === 401 && !options.authRetried && !endpoint.startsWith('/auth/')) {
         return this.handleTokenExpired(endpoint, options);
       }
 
@@ -96,51 +105,13 @@ class ApiClient {
    * Performs refresh token exchange and queues original calls to retry
    */
   async handleTokenExpired(endpoint, options) {
-    const refreshToken = this.getRefreshToken();
-    
-    if (!refreshToken) {
-      this.handleAuthFailure();
-      throw { success: false, error: { code: 'UNAUTHENTICATED', message: 'Session expired. Please log in again.' } };
-    }
-
-    // Queue original requests if refresh is already in flight
-    if (this.isRefreshing) {
-      return new Promise((resolve) => {
-        this.subscribeTokenRefresh((newToken) => {
-          options.headers['Authorization'] = `Bearer ${newToken}`;
-          resolve(this.request(endpoint, options));
-        });
-      });
-    }
-
-    this.isRefreshing = true;
-
     try {
-      const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      if (!refreshResponse.ok) {
-        throw new Error('Refresh failed');
-      }
-
-      const refreshJson = await refreshResponse.json();
-      const newAccessToken = refreshJson.data.accessToken;
-      
-      this.setTokens(newAccessToken);
-      this.isRefreshing = false;
-
-      // Dispatch queued requests
-      this.onRefreshed(newAccessToken);
-
-      // Retry original request
-      options.headers['Authorization'] = `Bearer ${newAccessToken}`;
+      await this.restoreSession();
+      options.authRetried = true;
+      options.headers['Authorization'] = `Bearer ${this.getAccessToken()}`;
       return this.request(endpoint, options);
 
     } catch (err) {
-      this.isRefreshing = false;
       this.handleAuthFailure();
       throw { success: false, error: { code: 'SESSION_EXPIRED', message: 'Session expired. Please log in again.' } };
     }
@@ -151,9 +122,7 @@ class ApiClient {
     this.clearUser();
     
     // Redirect to login if not already there
-    if (!window.location.pathname.endsWith('login.html')) {
-      window.location.href = '/login.html';
-    }
+    window.location.href = '/login.html';
   }
 
   // Shortcut HTTP helpers
