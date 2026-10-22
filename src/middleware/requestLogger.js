@@ -1,9 +1,9 @@
 const logger = require('../utils/logger');
-const { v4: uuidv4 } = require('crypto'); // We can use standard crypto package or simple random generator
+const { randomUUID } = require('crypto');
 
 // Simple utility to generate quick request IDs if crypto is not imported
 function generateRequestId() {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  return randomUUID();
 }
 
 /**
@@ -11,7 +11,9 @@ function generateRequestId() {
  */
 function requestLogger(req, res, next) {
   const start = Date.now();
-  const requestId = req.headers['x-request-id'] || generateRequestId();
+  const supplied = req.headers['x-request-id'];
+  const requestId = typeof supplied === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(supplied)
+    ? supplied : generateRequestId();
   
   // Add request ID to headers
   req.requestId = requestId;

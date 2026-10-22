@@ -80,7 +80,12 @@ describe('Auth API integration', () => {
       .get('/api/vessels')
       .set('Authorization', `Bearer ${token}`);
 
-    expect(vesselsRes.status).toBe(200);
+    expect(vesselsRes.status).toBe(401);
+    const relogin = await request(app).post('/api/auth/login')
+      .send({ username: 'lockeduser2', password: 'Newpassword456!' });
+    expect(relogin.status).toBe(200);
+    expect((await request(app).get('/api/vessels')
+      .set('Authorization', `Bearer ${relogin.body.data.accessToken}`)).status).toBe(200);
   });
 
   it('forces an expired password change and revokes the previous refresh token', async () => {

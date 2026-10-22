@@ -45,11 +45,11 @@ class ArchiveRepository {
   /**
    * Purge archived entries older than a set number of days (e.g. 90 days)
    */
-  async purge(daysThreshold = 90) {
+  async purge(daysThreshold = 90, conn = database.db) {
     const thresholdDate = new Date(Date.now() - daysThreshold * 24 * 60 * 60 * 1000);
     const thresholdIso = thresholdDate.toISOString();
 
-    return database.db('vessel_archive').where('archived_at', '<=', thresholdIso).del();
+    return conn('vessel_archive').where('archived_at', '<=', thresholdIso).del();
   }
 }
 

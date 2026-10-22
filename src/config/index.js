@@ -49,7 +49,7 @@ module.exports = {
   jwt: {
     secret: process.env.JWT_SECRET || 'fallback-jwt-secret-dev',
     refreshSecret: process.env.JWT_REFRESH_SECRET || 'fallback-jwt-refresh-secret-dev',
-    accessExpiry: '8h', // 8 hours as requested
+    accessExpiry: '15m',
     refreshExpiry: '7d', // 7 days as requested
   },
   
@@ -63,7 +63,7 @@ module.exports = {
   
   rateLimiter: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
-    max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+    max: positiveInt(process.env.RATE_LIMIT_MAX, 1000),
   },
 
   password: {
@@ -86,6 +86,8 @@ module.exports = {
     password: process.env.DB_PASSWORD,
     name: process.env.DB_NAME,
     ssl: process.env.DB_SSL === 'true',
+    sslCaFile: process.env.DB_SSL_CA_FILE,
+    sslVerify: process.env.DB_SSL_VERIFY !== 'false',
   },
 
   logging: {

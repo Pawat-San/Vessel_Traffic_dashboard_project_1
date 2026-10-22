@@ -1,4 +1,5 @@
 const database = require('../../database/knex');
+const { AuthenticationError } = require('../../utils/errors');
 
 const ACTIVITY_USER_COLUMNS = [
   'id', 'username', 'display_name', 'role', 'is_active',
@@ -40,7 +41,11 @@ class UserActivityRepository {
 
   async recordLogin(user, metadata, tokenHash, conn = database.db) {
     const occurredAt = metadata.occurred_at || new Date().toISOString();
-    await conn('users').where('id', user.id).update({
+    const updated = await conn('users').where({
+      id: user.id, is_active: 1, password_hash: user.password_hash,
+      session_version: user.session_version - 1,
+    }).update({
+      session_version: user.session_version,
       refresh_token_hash: tokenHash,
       last_login_at: occurredAt,
       last_activity_at: occurredAt,
@@ -48,6 +53,7 @@ class UserActivityRepository {
       last_user_agent_hash: metadata.user_agent_hash || null,
       updated_at: conn.fn.now(),
     });
+    if (!updated) throw new AuthenticationError('Account changed during login. Please log in again.');
     await this.upsertDailyActivity(user, occurredAt, conn);
     return this.insertEvent({
       user_id: user.id,

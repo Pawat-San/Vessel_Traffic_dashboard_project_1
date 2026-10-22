@@ -189,14 +189,9 @@ function showForcedPasswordChangeModal() {
  * mid-session), so the block applies immediately regardless of which part of
  * the app triggered the request.
  */
-window.onPasswordChangeRequired = function onPasswordChangeRequired(details = {}) {
-  const user = window.api.getUser();
-  if (user) {
-    user.mustChangePassword = true;
-    user.passwordExpired = Boolean(details.passwordExpired);
-    window.api.setUser(user);
-  }
-  showForcedPasswordChangeModal();
+window.onPasswordChangeRequired = function onPasswordChangeRequired() {
+  // Re-authenticate before obtaining a purpose-limited change token.
+  window.api.handleAuthFailure();
 };
 
 /**
@@ -207,6 +202,8 @@ function applyRoleVisibility() {
   if (!user) return;
 
   const isAdmin = user.role === 'admin';
+  const purgeButton = document.getElementById('trigger-purge-btn');
+  if (purgeButton) purgeButton.hidden = user.role !== 'superadmin';
   const isOperator = user.role === 'operator';
   const isViewer = user.role === 'viewer';
   const isSuperadmin = user.role === 'superadmin';
@@ -274,8 +271,10 @@ function applyRoleVisibility() {
 
   // Admin panel maintenance actions (archive trigger, purge)
   if (elements.adminToolsContainer) {
-    elements.adminToolsContainer.style.display = isAdmin ? 'flex' : 'none';
+    elements.adminToolsContainer.style.display = isAdmin || isSuperadmin ? 'flex' : 'none';
   }
+  const archiveButton = document.getElementById('trigger-archive-btn');
+  if (archiveButton) archiveButton.hidden = !isAdmin;
 
   // Account Management and all user-activity reporting are Superadmin-only.
   if (elements.accountsToolsContainer) {
@@ -1616,8 +1615,9 @@ window.onTriggerArchiveClick = onTriggerArchiveClick;
 window.onTriggerPurgeClick = onTriggerPurgeClick;
 
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
-  if (!window.location.pathname.endsWith('login.html')) {
+document.addEventListener('DOMContentLoaded', async () => {
+  await window.authReady;
+  if (!window.location.pathname.endsWith('login.html') && window.api.getUser()) {
     initDashboard();
   }
 });

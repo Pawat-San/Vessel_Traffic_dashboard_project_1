@@ -3,6 +3,7 @@ const archiveService = require('../modules/archive/archive.service');
 const logger = require('../utils/logger');
 const config = require('../config');
 const userActivityService = require('../modules/users/userActivity.service');
+const rateLimitStore = require('../utils/rateLimitStore');
 
 /**
  * Initializes and starts the background cleaning and archiving tasks
@@ -14,6 +15,10 @@ function startArchiveJobs() {
   }
 
   logger.info('Starting background database maintenance jobs...');
+  const cleanupRateLimits = () => rateLimitStore.cleanup()
+    .catch((error) => logger.error('Rate limit cleanup failed', { error: error.message }));
+  cleanupRateLimits();
+  setInterval(cleanupRateLimits, 60 * 1000).unref();
 
   // 1. Run vessel archiving check every hour (departed > 24 hours ago)
   const ARCHIVE_INTERVAL_MS = 60 * 60 * 1000; // 1 hour

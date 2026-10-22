@@ -7,12 +7,21 @@ services:
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
+      - key: NODE_VERSION
+        value: "24.22.1"
       - key: NODE_ENV
         value: production
       - key: DB_CLIENT
         value: pg
       - key: DB_SSL
         value: "true"
+      - key: DB_SSL_VERIFY
+        value: "true"
+      # Mount the Supabase database CA as a Render secret file first.
+      - key: DB_SSL_CA_FILE
+        sync: false
+      - key: RUN_MIGRATIONS_ON_STARTUP
+        value: "false"
       - key: SEED_DEMO_ACCOUNTS
         value: "false"
       - key: PASSWORD_MAX_AGE_DAYS
