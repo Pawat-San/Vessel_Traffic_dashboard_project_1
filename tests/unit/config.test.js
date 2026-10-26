@@ -1,3 +1,63 @@
+const crypto = require('crypto');
+
+describe('Production secret validation', () => {
+  const names = ['NODE_ENV', 'JWT_SECRET', 'JWT_REFRESH_SECRET', 'COOKIE_SECRET'];
+  let originals;
+
+  beforeEach(() => {
+    originals = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+    process.env.NODE_ENV = 'production';
+    for (const name of names.slice(1)) process.env[name] = crypto.randomBytes(32).toString('hex');
+    jest.resetModules();
+    jest.doMock('dotenv', () => ({ config: jest.fn() }));
+  });
+
+  afterEach(() => {
+    for (const name of names) {
+      if (originals[name] === undefined) delete process.env[name];
+      else process.env[name] = originals[name];
+    }
+    jest.dontMock('dotenv');
+    jest.resetModules();
+  });
+
+  it('accepts independently generated random secrets', () => {
+    expect(() => require('../../src/config')).not.toThrow();
+  });
+
+  it.each([
+    '', '12345678', 'a'.repeat(64), 'abcdefgh'.repeat(8),
+    'super-secret-jwt-key-replace-in-production',
+    '0123456789abcdef0123456789abcdef',
+  ])('rejects weak or example secrets (%#)', (value) => {
+    process.env.JWT_SECRET = value;
+    expect(() => require('../../src/config')).toThrow('Refusing to start');
+  });
+
+  it.each(['JWT_SECRET', 'JWT_REFRESH_SECRET', 'COOKIE_SECRET'])('enforces minimum length on %s', (name) => {
+    process.env[name] = 'too-short';
+    expect(() => require('../../src/config')).toThrow(`${name} must contain at least 32 bytes`);
+  });
+
+  it('rejects reuse between access, refresh, and cookie secrets without exposing their values', () => {
+    const secret = process.env.JWT_SECRET;
+    process.env.JWT_REFRESH_SECRET = secret;
+    try {
+      require('../../src/config');
+      throw new Error('Expected invalid configuration to be rejected');
+    } catch (error) {
+      expect(error.message).toContain('must be different');
+      expect(error.message).not.toContain(secret);
+    }
+  });
+
+  it('keeps local development defaults available', () => {
+    process.env.NODE_ENV = 'development';
+    for (const name of names.slice(1)) delete process.env[name];
+    expect(require('../../src/config').jwt.secret).toBe('fallback-jwt-secret-dev');
+  });
+});
+
 describe('App config — appTitle', () => {
   const ORIGINAL_APP_TITLE = process.env.APP_TITLE;
 

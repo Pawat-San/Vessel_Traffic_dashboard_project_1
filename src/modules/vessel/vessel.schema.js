@@ -28,20 +28,20 @@ const createVesselSchema = z.object({
       message: 'VOY must be exactly 3 digits',
     }),
   type: z.enum(['AMN','BULK','CAPE','CHMC','CNTN','CRUISE','HVLT','LNG','LPG','MPP','PMX','RORO','TANKER','WCC'], {
-    errorMap: () => ({ message: 'Vessel type must be one of: AMN, BULK, CAPE, CHMC, CNTN, CRUISE, HVLT, LNG, LPG, MPP, PMX, RORO, TANKER, WCC' })
+    error: 'Vessel type must be one of: AMN, BULK, CAPE, CHMC, CNTN, CRUISE, HVLT, LNG, LPG, MPP, PMX, RORO, TANKER, WCC'
   }),
   terminal_id: z.number({
-    required_error: 'Terminal ID is required'
+    error: (issue) => issue.input === undefined ? 'Terminal ID is required' : undefined
   }).int().positive(),
   activity: z.enum(['L','D','B','DD','LD','LB','DB','LDB','L,D','L,B','D,B','L,D,B'], {
-    errorMap: () => ({ message: 'Activity must be a valid loading/discharging combination (e.g. L, D, B, LD, etc.)' })
+    error: 'Activity must be a valid loading/discharging combination (e.g. L, D, B, LD, etc.)'
   }),
   eta: dateSchema,
   etb: dateSchema,
   etd: dateSchema,
   atd: dateSchema,
   status: z.enum(['AT SEA','ANCHOR','BERTH','DEPART','AT 1st PORT','AT 2nd PORT'], {
-    errorMap: () => ({ message: 'Status must be one of: AT SEA, ANCHOR, BERTH, DEPART, AT 1st PORT, AT 2nd PORT' })
+    error: 'Status must be one of: AT SEA, ANCHOR, BERTH, DEPART, AT 1st PORT, AT 2nd PORT'
   }),
   next_port: z.string()
     .max(100, 'Next port name must be at most 100 characters')

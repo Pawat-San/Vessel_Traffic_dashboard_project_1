@@ -74,6 +74,20 @@ function downloadCSV(filename, text) {
 }
 
 /**
+ * Quote every field and neutralize spreadsheet formulas on export. A leading
+ * tab keeps dangerous cells as text in Excel; it remains part of the CSV data.
+ * Normalize only for detection so full-width formula markers are covered.
+ */
+function csvCell(value) {
+  let text = String(value ?? '');
+  // eslint-disable-next-line no-control-regex -- Attackers may prefix formulas with control characters.
+  if (/^[\s\u0000-\u001f]*[=+\-@]/u.test(text.normalize('NFKC')) || /^[\t\r\n]/u.test(text)) {
+    text = `\t${text}`;
+  }
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+/**
  * Convert vessels list array to a CSV string and trigger download
  */
 function exportVesselsToCSV(vessels) {
@@ -96,13 +110,13 @@ function exportVesselsToCSV(vessels) {
     v.atd ? new Date(v.atd).toISOString() : '',
     v.status,
     v.next_port || '',
-    (v.remark || '').replace(/"/g, '""'), // escape quotes in csv
+    v.remark || '',
     v.updated_by_name || ''
   ]);
 
   const csvContent = [
     headers.join(','),
-    ...rows.map(row => row.map(val => `"${val}"`).join(','))
+    ...rows.map(row => row.map(csvCell).join(','))
   ].join('\n');
 
   const timestamp = new Date().toISOString().slice(0, 10);
@@ -127,7 +141,7 @@ function downloadImportTemplate() {
   ];
   const csv = [
     IMPORT_COLUMNS.join(','),
-    example.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','),
+    example.map(csvCell).join(','),
   ].join('\n');
   downloadCSV('vessels_import_template.csv', csv);
 }
@@ -144,7 +158,7 @@ function parseCSV(text) {
   let inQuotes = false;
 
   // Normalize newlines and strip a leading BOM if present.
-  const src = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const src = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   for (let i = 0; i < src.length; i++) {
     const c = src[i];

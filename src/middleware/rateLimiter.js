@@ -31,13 +31,16 @@ async function loginRateLimiter(req, res, next) {
   }
 
   try {
+    // Never let an unauthenticated caller lock a username across all networks.
+    // Keep the per-IP ceiling as well to limit attempts across many usernames.
+    const accountIp = JSON.stringify([req.ip, req.body.username]);
     const results = await Promise.all([
-      store.consume('login-account', req.body.username, 5, 15 * 60 * 1000),
+      store.consume('login-account-ip', accountIp, 5, 15 * 60 * 1000),
       store.consume('login-ip', req.ip, 100, 15 * 60 * 1000),
     ]);
     const blocked = results.find((result) => !result.allowed);
     const release = () => Promise.all([
-      store.release('login-account', req.body.username, results[0].expiresAt),
+      store.release('login-account-ip', accountIp, results[0].expiresAt),
       store.release('login-ip', req.ip, results[1].expiresAt),
     ]);
     if (blocked) {

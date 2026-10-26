@@ -72,6 +72,36 @@ No schema data rewrite or password reset is required by the new session-version 
 
 If a rollout fails, keep the new additive columns/tables and Data API denials. Restore the last application release and its matching environment configuration, then require login again. Do not disable RLS or restore public grants. Keep database-role cutover separate: an old release that still runs migrations at startup cannot start with the restricted runtime role. Rehearse that rollback before the credential switch.
 
+## Follow-up hardening (26 October 2026)
+
+- Login failures are limited to five per username/IP pair in 15 minutes, plus
+  100 per IP across usernames. There is no unauthenticated username-only lock:
+  failures from one network cannot block that account on another network.
+  Existing username-only counters are ignored and expire normally. Users behind
+  the same public IP still share the IP ceiling; distributed credential attacks
+  require additional monitoring and MFA rather than a remotely triggerable
+  account-wide lock.
+- CSV export quotes and escapes every field, including vessel/port names and
+  account display names. Formula markers (including full-width forms and leading
+  whitespace) receive a tab prefix inside the quoted field for Excel viewing.
+  The prefix changes the raw exported cell value; programmatic consumers must
+  account for it. CSV behavior varies between spreadsheet applications and on
+  save/reopen, so this is export hardening rather than a universal file-safety
+  guarantee. Stored database values are not changed.
+- Production startup requires each JWT/cookie secret to contain at least 32
+  bytes and rejects example placeholders, obvious repetitive values, whitespace,
+  and reuse between secrets. These checks cannot prove randomness: generate
+  each value independently using `crypto.randomBytes(32).toString('hex')` and keep
+  it in the deployment secret store. Check existing production values before
+  deployment. Rotate only invalid values deliberately; changing JWT secrets
+  invalidates existing sessions. No production secrets are automatically changed
+  by this release.
+
+References for the follow-up:
+
+- CSV export guidance: https://owasp.org/www-community/attacks/CSV_Injection
+- HS256 key requirements: https://www.rfc-editor.org/rfc/rfc7518#section-3.2
+
 ## References
 
 - Node security release: https://nodejs.org/en/blog/vulnerability/october-2026-security-releases
