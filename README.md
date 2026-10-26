@@ -40,7 +40,7 @@ The Vessel Traffic Dashboard gives port operations teams a single, live view of 
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js ≥ 20, Express 4 |
+| Runtime | Node.js v24.22.1, Express 4 |
 | Database | Knex 3 (query builder/migrations) · better-sqlite3 (dev) · PostgreSQL via `pg` (prod, Supabase) |
 | Auth & Security | JSON Web Tokens, `@node-rs/argon2` (+ bcryptjs fallback), Helmet, CORS, custom rate limiter, cookie-parser |
 | Validation | Zod |
