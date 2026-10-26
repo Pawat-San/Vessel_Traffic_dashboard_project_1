@@ -13,7 +13,7 @@ const createUserSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').max(50).trim(),
   password: passwordSchema,
   display_name: z.string().min(1, 'Display name is required').max(100).trim(),
-  role: z.enum(ROLES, { errorMap: () => ({ message: `Role must be one of: ${ROLES.join(', ')}` }) }),
+  role: z.enum(ROLES, { error: `Role must be one of: ${ROLES.join(', ')}` }),
 });
 
 const updateUserSchema = z.object({

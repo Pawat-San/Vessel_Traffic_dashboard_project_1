@@ -7,7 +7,7 @@ const validate = {
   body: (schema) => (req, res, next) => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
-      const details = result.error.errors.map((err) => ({
+      const details = result.error.issues.map((err) => ({
         field: err.path.join('.'),
         message: err.message,
       }));
@@ -20,7 +20,7 @@ const validate = {
   query: (schema) => (req, res, next) => {
     const result = schema.safeParse(req.query);
     if (!result.success) {
-      const details = result.error.errors.map((err) => ({
+      const details = result.error.issues.map((err) => ({
         field: err.path.join('.'),
         message: err.message,
       }));
@@ -33,7 +33,7 @@ const validate = {
   params: (schema) => (req, res, next) => {
     const result = schema.safeParse(req.params);
     if (!result.success) {
-      const details = result.error.errors.map((err) => ({
+      const details = result.error.issues.map((err) => ({
         field: err.path.join('.'),
         message: err.message,
       }));

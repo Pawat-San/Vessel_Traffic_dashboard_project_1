@@ -25,12 +25,22 @@ if (nodeEnv === 'production') {
       problems.push(`${envVar} is not set`);
     } else if (value === fallbackValue) {
       problems.push(`${envVar} is set to the insecure default fallback value`);
+    } else if (Buffer.byteLength(value, 'utf8') < 32) {
+      problems.push(`${envVar} must contain at least 32 bytes`);
+    } else if (value.trim() !== value || /\s/u.test(value)
+        || /fallback|replace[-_ ]?in[-_ ]?production|change[-_ ]?me|super[-_ ]?secret|your[-_ ]?(jwt|refresh|cookie|secret)/i.test(value)
+        || new Set(value).size < 8 || /^(.{1,16})\1+$/u.test(value)) {
+      problems.push(`${envVar} must be a randomly generated secret, not a placeholder or repetitive value`);
     }
+  }
+  const configuredSecrets = Object.keys(FALLBACK_SECRETS).map((name) => process.env[name]).filter(Boolean);
+  if (new Set(configuredSecrets).size !== configuredSecrets.length) {
+    problems.push('JWT_SECRET, JWT_REFRESH_SECRET, and COOKIE_SECRET must be different');
   }
   if (problems.length > 0) {
     throw new Error(
       `Refusing to start in production with insecure secrets:\n  - ${problems.join('\n  - ')}\n` +
-      'Set real, unique values for JWT_SECRET, JWT_REFRESH_SECRET, and COOKIE_SECRET before deploying.'
+      'Generate each secret independently with crypto.randomBytes(32).toString("hex") before deploying.'
     );
   }
 }
